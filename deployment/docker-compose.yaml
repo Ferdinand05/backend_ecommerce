@@ -1,0 +1,77 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: ecommerce_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${DB_USER} -d ${DB_NAME}"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - ecommerce_network
+
+  migrate:
+    image: migrate/migrate:v4.19.0
+    container_name: ecommerce_migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ../database/migrations:/migrations:ro
+    command:
+      [
+        "-path=/migrations",
+        "-database=postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?sslmode=disable",
+        "up"
+      ]
+    networks:
+      - ecommerce_network
+
+  api:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+    container_name: ecommerce_api
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - ../.env
+    ports:
+      - "8080:8080"
+    volumes:
+      - ..:/app
+    networks:
+      - ecommerce_network
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: ecommerce_mailpit
+    restart: unless-stopped
+    ports:
+      - "${MAILPIT_WEB_PORT}:8025"
+      - "${MAILPIT_SMTP_PORT}:1025"
+    networks:
+      - ecommerce_network
+
+volumes:
+  postgres_data:
+
+networks:
+  ecommerce_network:
+    driver: bridge
