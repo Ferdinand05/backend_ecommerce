@@ -150,10 +150,10 @@ func TestEmailVerificationRepositoryInvalidateUserTokens(t *testing.T) {
 
 	now := time.Now()
 	verified := models.EmailVerification{
-		ID:        uuid.New(),
-		UserID:    userID,
-		TokenHash: "verified-hash",
-		ExpiresAt: time.Now().Add(30 * time.Minute),
+		ID:         uuid.New(),
+		UserID:     userID,
+		TokenHash:  "verified-hash",
+		ExpiresAt:  time.Now().Add(30 * time.Minute),
 		VerifiedAt: &now,
 	}
 

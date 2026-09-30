@@ -8,28 +8,49 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
 
-  build:
+  test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: root
+          POSTGRES_DB: ecommerce_app_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ecommerce_app_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
     - uses: actions/checkout@v4
 
     - name: Set up Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: '1.26'
+        cache-dependency-path: go.sum
+
+    - name: Run migrations
+      run: |
+        for f in database/migrations/*.up.sql; do
+          PGPASSWORD=root psql -h localhost -U postgres -d ecommerce_app_test -f "$f"
+        done
 
     - name: Build
-      run: go build -v ./...
+      run: go build ./...
 
     - name: Test
-      run: go test -v ./internal... -p 1 -count=1
-      
-    - name: Vet
-      run: go vet ./internal...
-   
-    - name: Formatting
-      run: gofmt -w .
+      run: go test ./... -p 1 -count=1
 
+    - name: Vet
+      run: go vet ./...
+
+    - name: Format check
+      run: test -z "$(gofmt -l .)"
