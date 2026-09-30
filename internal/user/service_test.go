@@ -10,15 +10,15 @@ import (
 )
 
 type fakeRepo struct {
-	findAllResult    []models.User
-	findAllErr       error
-	findByIDResult   models.User
-	findByIDErr      error
-	findByEmailRes   models.User
-	findByEmailErr   error
-	createResult     models.User
-	createErr        error
-	createCalled     bool
+	findAllResult  []models.User
+	findAllErr     error
+	findByIDResult models.User
+	findByIDErr    error
+	findByEmailRes models.User
+	findByEmailErr error
+	createResult   models.User
+	createErr      error
+	createCalled   bool
 }
 
 func (f *fakeRepo) FindAll(ctx context.Context) ([]models.User, error) {

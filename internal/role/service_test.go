@@ -96,8 +96,8 @@ func TestServiceFindAll(t *testing.T) {
 		wantErr error
 	}{
 		{
-			name: "success",
-			repo: &fakeRepo{findAllRes: []models.Role{{Name: "customer"}, {Name: "admin"}}},
+			name:    "success",
+			repo:    &fakeRepo{findAllRes: []models.Role{{Name: "customer"}, {Name: "admin"}}},
 			wantLen: 2,
 		},
 		{

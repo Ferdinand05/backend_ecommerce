@@ -52,14 +52,14 @@ func TestAuthMiddleware(t *testing.T) {
 	validClaims.Subject = "user-id-1"
 
 	tests := []struct {
-		name        string
-		jwtSvc      *fakeJWT
-		authHeader  string
-		wantStatus  int
-		wantNext    bool
-		wantUserID  string
-		wantEmail   string
-		wantRole    string
+		name       string
+		jwtSvc     *fakeJWT
+		authHeader string
+		wantStatus int
+		wantNext   bool
+		wantUserID string
+		wantEmail  string
+		wantRole   string
 	}{
 		{
 			name:       "missing header",
