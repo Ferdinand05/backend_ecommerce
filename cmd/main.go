@@ -71,4 +71,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	fmt.Println("App Listening to" + cfg.Database.Port)
+
 }
