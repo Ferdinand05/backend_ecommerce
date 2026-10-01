@@ -39,16 +39,54 @@ func (s *SMTPSender) SendVerificationEmail(
 
 	subject := "Verify your email"
 
-	body := fmt.Sprintf(
-		"Hello,\n\n"+
-			"Please verify your email by opening this link:\n\n"+
-			"%s\n\n"+
-			"This verification link will expire soon.\n\n"+
-			"Thank you.",
-		verifyURL,
-	)
+	htmlBody := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<title>Verify your email</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6;">
+	<h2>Verify your email</h2>
 
-	return s.send(to, subject, body)
+	<p>Hello,</p>
+
+	<p>
+		Thank you for registering. Please verify your email address
+		by clicking the button below.
+	</p>
+
+	<p>
+		<a href="%s"
+		   style="
+				display: inline-block;
+				padding: 12px 24px;
+				background-color: #2563eb;
+				color: #ffffff;
+				text-decoration: none;
+				border-radius: 6px;
+				font-weight: bold;
+		   ">
+			Verify Email
+		</a>
+	</p>
+
+	<p>
+		This verification link will expire in 30 minutes.
+	</p>
+
+	<p>
+		If you did not create an account, you can safely ignore this email.
+	</p>
+
+	<p>
+		Thank you.
+	</p>
+</body>
+</html>
+`, verifyURL)
+
+	return s.sendHTML(to, subject, htmlBody)
 }
 
 func (s *SMTPSender) SendPasswordResetEmail(
@@ -58,27 +96,65 @@ func (s *SMTPSender) SendPasswordResetEmail(
 ) error {
 	resetURL := fmt.Sprintf(
 		"%s/reset-password?token=%s",
-		s.cfg,
+		s.cfg.FrontendBaseURL,
 		token,
 	)
 
 	subject := "Reset your password"
 
-	body := fmt.Sprintf(
-		"Hello,\n\n"+
-			"Please reset your password using this link:\n\n"+
-			"%s\n\n"+
-			"If you did not request this, you can ignore this email.",
-		resetURL,
-	)
+	htmlBody := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<title>Reset your password</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6;">
+	<h2>Reset your password</h2>
 
-	return s.send(to, subject, body)
+	<p>Hello,</p>
+
+	<p>
+		We received a request to reset your password.
+	</p>
+
+	<p>
+		Click the button below to continue.
+	</p>
+
+	<p>
+		<a href="%s"
+		   style="
+				display: inline-block;
+				padding: 12px 24px;
+				background-color: #2563eb;
+				color: #ffffff;
+				text-decoration: none;
+				border-radius: 6px;
+				font-weight: bold;
+		   ">
+			Reset Password
+		</a>
+	</p>
+
+	<p>
+		This reset link will expire in 30 minutes.
+	</p>
+
+	<p>
+		If you did not request a password reset, you can safely ignore this email.
+	</p>
+</body>
+</html>
+`, resetURL)
+
+	return s.sendHTML(to, subject, htmlBody)
 }
 
-func (s *SMTPSender) send(
+func (s *SMTPSender) sendHTML(
 	to string,
 	subject string,
-	body string,
+	htmlBody string,
 ) error {
 	addr := fmt.Sprintf(
 		"%s:%s",
@@ -90,9 +166,10 @@ func (s *SMTPSender) send(
 		"From: " + s.cfg.From + "\r\n" +
 			"To: " + to + "\r\n" +
 			"Subject: " + subject + "\r\n" +
-			"Content-Type: text/plain; charset=UTF-8\r\n" +
+			"MIME-Version: 1.0\r\n" +
+			"Content-Type: text/html; charset=UTF-8\r\n" +
 			"\r\n" +
-			body,
+			htmlBody,
 	)
 
 	var auth smtp.Auth

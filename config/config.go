@@ -130,7 +130,8 @@ func Load() (Config, error) {
 			Username:   os.Getenv("SMTP_USERNAME"),
 			Password:   os.Getenv("SMTP_PASSWORD"),
 			AppBaseURL: appBaseURL,
-		},
+			FrontendBaseURL: frontendBaseURL,
+			},
 	}, nil
 
 }
