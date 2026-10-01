@@ -36,6 +36,11 @@ type Service interface {
 		ctx context.Context,
 		rawRefreshToken string,
 	) error
+
+	ResendVerification(
+		ctx context.Context,
+		email string,
+	) error
 }
 
 type service struct {
@@ -364,6 +369,68 @@ func (s *service) Logout(
 		rt.ID,
 	); err != nil {
 		return fmt.Errorf("revoking refresh token: %w", err)
+	}
+
+	return nil
+}
+
+func (s *service) ResendVerification(
+	ctx context.Context,
+	email string,
+) error {
+	email = strings.ToLower(
+		strings.TrimSpace(email),
+	)
+
+	u, err := s.userRepo.FindByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, user.ErrorUserNotFound) {
+			return nil
+		}
+
+		return fmt.Errorf("finding user: %w", err)
+	}
+
+	if u.EmailVerifiedAt != nil {
+		return nil
+	}
+
+	rawToken, err := token.Generate()
+	if err != nil {
+		return fmt.Errorf("generating verification token: %w", err)
+	}
+
+	verification := models.EmailVerification{
+		ID:        uuid.New(),
+		UserID:    u.ID,
+		TokenHash: token.Hash(rawToken),
+		ExpiresAt: time.Now().Add(30 * time.Minute),
+	}
+
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		txCtx := database.InjectTx(ctx, tx)
+
+		if err := s.emailVerifRepo.InvalidateUserTokens(
+			txCtx,
+			u.ID,
+		); err != nil {
+			return err
+		}
+
+		return s.emailVerifRepo.Create(
+			txCtx,
+			verification,
+		)
+	}); err != nil {
+		return fmt.Errorf("creating email verification: %w", err)
+	}
+
+	if err := s.emailSender.SendVerificationEmail(
+		ctx,
+		u.Email,
+		rawToken,
+	); err != nil {
+		return fmt.Errorf("sending verification email: %w", err)
 	}
 
 	return nil

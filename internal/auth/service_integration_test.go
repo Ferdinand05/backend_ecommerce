@@ -7,6 +7,7 @@ import (
 	"ferdinand/ecommerce/internal/user"
 	"ferdinand/ecommerce/utils/crypto"
 	"ferdinand/ecommerce/utils/token"
+	"strings"
 	"testing"
 	"time"
 
@@ -304,4 +305,88 @@ func TestLogoutRevokesToken(t *testing.T) {
 	if err := svc.Logout(context.Background(), "unknown-token"); err != nil {
 		t.Fatalf("Logout() unknown token error = %v, want nil (idempotent)", err)
 	}
+}
+
+func TestResendVerificationIntegration(t *testing.T) {
+	t.Run("invalidates old token and issues new one", func(t *testing.T) {
+		db := setupTestDB(t)
+
+		u := seedUser(t, db)
+
+		seedVerification(t, db, u.ID, "old-raw-token", time.Now().Add(30*time.Minute), nil)
+
+		sender := &fakeSender{}
+		svc := &service{
+			userRepo:       user.NewRepository(db),
+			emailVerifRepo: NewEmailVerificationRepository(db),
+			emailSender:    sender,
+			db:             db,
+		}
+
+		if err := svc.ResendVerification(context.Background(), strings.ToUpper(u.Email)); err != nil {
+			t.Fatalf("ResendVerification() error = %v", err)
+		}
+
+		var old models.EmailVerification
+		if err := db.Where("token_hash = ?", token.Hash("old-raw-token")).First(&old).Error; err != nil {
+			t.Fatalf("old token not found: %v", err)
+		}
+
+		if old.ExpiresAt.After(time.Now()) {
+			t.Fatal("old token still active after resend")
+		}
+
+		var active []models.EmailVerification
+		if err := db.Where("user_id = ? AND verified_at IS NULL AND expires_at > ?", u.ID, time.Now()).Find(&active).Error; err != nil {
+			t.Fatalf("failed to query active tokens: %v", err)
+		}
+
+		if len(active) != 1 {
+			t.Fatalf("active tokens = %d, want 1", len(active))
+		}
+
+		if active[0].TokenHash == token.Hash("old-raw-token") {
+			t.Fatal("new token hash equals old token hash")
+		}
+
+		if sender.sentTo != u.Email {
+			t.Fatalf("email sent to %q, want %q", sender.sentTo, u.Email)
+		}
+	})
+
+	t.Run("verified user gets no new token", func(t *testing.T) {
+		db := setupTestDB(t)
+
+		u := seedUser(t, db)
+
+		now := time.Now()
+		if err := db.Model(&models.User{}).Where("id = ?", u.ID).Update("email_verified_at", now).Error; err != nil {
+			t.Fatalf("failed to mark verified: %v", err)
+		}
+
+		sender := &fakeSender{}
+		svc := &service{
+			userRepo:       user.NewRepository(db),
+			emailVerifRepo: NewEmailVerificationRepository(db),
+			emailSender:    sender,
+			db:             db,
+		}
+
+		if err := svc.ResendVerification(context.Background(), u.Email); err != nil {
+			t.Fatalf("ResendVerification() error = %v", err)
+		}
+
+		var count int64
+		if err := db.Model(&models.EmailVerification{}).Where("user_id = ?", u.ID).Count(&count).Error; err != nil {
+			t.Fatalf("failed to count tokens: %v", err)
+		}
+
+		if count != 0 {
+			t.Fatalf("tokens created = %d, want 0", count)
+		}
+
+		if sender.sentTo != "" {
+			t.Fatal("email sent for already verified user")
+		}
+	})
 }
