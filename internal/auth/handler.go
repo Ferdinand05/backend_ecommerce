@@ -94,6 +94,24 @@ func (h *Handler) Refresh(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+func (h *Handler) Logout(c *gin.Context) {
+	var req LogoutRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	if err := h.svc.Logout(ctx, req.RefreshToken); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to logout"})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
 func (h *Handler) VerifyEmail(c *gin.Context) {
 
 	var req VerifyEmailRequest

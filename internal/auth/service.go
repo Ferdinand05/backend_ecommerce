@@ -31,6 +31,11 @@ type Service interface {
 		ctx context.Context,
 		rawRefreshToken string,
 	) (LoginResponse, error)
+
+	Logout(
+		ctx context.Context,
+		rawRefreshToken string,
+	) error
 }
 
 type service struct {
@@ -330,4 +335,36 @@ func (s *service) Refresh(
 		ExpiresIn:    int64((15 * time.Minute).Seconds()),
 		User:         user.ToUserResponse(u),
 	}, nil
+}
+
+func (s *service) Logout(
+	ctx context.Context,
+	rawRefreshToken string,
+) error {
+	tokenHash := token.Hash(rawRefreshToken)
+
+	rt, err := s.refreshTokenRepo.FindByTokenHash(
+		ctx,
+		tokenHash,
+	)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+
+		return fmt.Errorf("finding refresh token: %w", err)
+	}
+
+	if rt.RevokedAt != nil {
+		return nil
+	}
+
+	if err := s.refreshTokenRepo.Revoke(
+		ctx,
+		rt.ID,
+	); err != nil {
+		return fmt.Errorf("revoking refresh token: %w", err)
+	}
+
+	return nil
 }

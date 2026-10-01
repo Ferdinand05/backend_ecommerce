@@ -261,3 +261,47 @@ func TestRefreshRotation(t *testing.T) {
 		t.Fatal("new refresh token reused old ID")
 	}
 }
+
+func TestLogoutRevokesToken(t *testing.T) {
+	db := setupTestDB(t)
+
+	u := seedUser(t, db)
+
+	raw := "logout-refresh-token"
+	rt := models.RefreshToken{
+		ID:        uuid.New(),
+		UserID:    u.ID,
+		TokenHash: token.Hash(raw),
+		ExpiresAt: time.Now().Add(30 * 24 * time.Hour),
+	}
+
+	if err := db.Create(&rt).Error; err != nil {
+		t.Fatalf("failed to seed refresh token: %v", err)
+	}
+
+	svc := &service{
+		refreshTokenRepo: NewRefreshTokenRepository(db),
+		db:               db,
+	}
+
+	if err := svc.Logout(context.Background(), raw); err != nil {
+		t.Fatalf("Logout() error = %v", err)
+	}
+
+	var stored models.RefreshToken
+	if err := db.Where("token_hash = ?", token.Hash(raw)).First(&stored).Error; err != nil {
+		t.Fatalf("refresh token row missing after logout: %v", err)
+	}
+
+	if stored.RevokedAt == nil {
+		t.Fatal("Logout() did not set RevokedAt")
+	}
+
+	if err := svc.Logout(context.Background(), raw); err != nil {
+		t.Fatalf("Logout() second call error = %v, want nil (idempotent)", err)
+	}
+
+	if err := svc.Logout(context.Background(), "unknown-token"); err != nil {
+		t.Fatalf("Logout() unknown token error = %v, want nil (idempotent)", err)
+	}
+}
