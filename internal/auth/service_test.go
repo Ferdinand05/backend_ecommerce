@@ -450,3 +450,73 @@ func TestRefresh(t *testing.T) {
 		})
 	}
 }
+
+func TestLogout(t *testing.T) {
+	now := time.Now()
+	dbErr := errors.New("db down")
+	id := uuid.New()
+
+	tests := []struct {
+		name          string
+		rtr           *fakeRefreshTokenRepo
+		wantErr       error
+		wantRevokedID uuid.UUID
+	}{
+		{
+			name: "token not found is idempotent",
+			rtr:  &fakeRefreshTokenRepo{findByHashErr: gorm.ErrRecordNotFound},
+		},
+		{
+			name: "already revoked is idempotent",
+			rtr: &fakeRefreshTokenRepo{findByHashRes: models.RefreshToken{
+				ID:        id,
+				RevokedAt: &now,
+			}},
+		},
+		{
+			name:    "find error",
+			rtr:     &fakeRefreshTokenRepo{findByHashErr: dbErr},
+			wantErr: dbErr,
+		},
+		{
+			name: "revoke error",
+			rtr: &fakeRefreshTokenRepo{
+				findByHashRes: models.RefreshToken{ID: id},
+				revokeErr:     dbErr,
+			},
+			wantErr: dbErr,
+		},
+		{
+			name: "success revokes token",
+			rtr: &fakeRefreshTokenRepo{
+				findByHashRes: models.RefreshToken{ID: id},
+			},
+			wantRevokedID: id,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := newTestService(&fakeUserRepo{}, &fakeRoleRepo{}, &fakeJWT{}, &fakeSender{}, &fakeEmailVerifRepo{}, tt.rtr)
+
+			err := svc.Logout(context.Background(), "raw-token")
+			if tt.wantErr != nil {
+				if err == nil {
+					t.Fatal("Logout() error = nil, want error")
+				}
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("Logout() error = %v, want %v", err, tt.wantErr)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Logout() error = %v", err)
+			}
+
+			if tt.rtr.revokedID != tt.wantRevokedID {
+				t.Fatalf("Logout() revokedID = %v, want %v", tt.rtr.revokedID, tt.wantRevokedID)
+			}
+		})
+	}
+}
