@@ -70,9 +70,9 @@ func main() {
 	authHandler := auth.NewHandler(authSvc)
 
 	handlers := router.RouteHandlers{
-		UserHandler: userHandler,
-		AuthHandler: authHandler,
-		RoleHandler: roleHandler,
+		UserHandler:     userHandler,
+		AuthHandler:     authHandler,
+		RoleHandler:     roleHandler,
 		CategoryHandler: categoryHandler,
 	}
 

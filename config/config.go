@@ -83,7 +83,7 @@ func Load() (Config, error) {
 	if appBaseURL == "" {
 		appBaseURL = "http://localhost:8080"
 	}
-	frontendBaseURL := os.Getenv("APP_BASE_URL")
+	frontendBaseURL := os.Getenv("FRONTEND_BASE_URL")
 	if frontendBaseURL == "" {
 		frontendBaseURL = "http://localhost:5173"
 	}
