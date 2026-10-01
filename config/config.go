@@ -124,12 +124,13 @@ func Load() (Config, error) {
 			SecretKey: jwtSecret,
 		},
 		Mail: MailConfig{
-			Host:       smtpHost,
-			Port:       smtpPort,
-			From:       smtpFrom,
-			Username:   os.Getenv("SMTP_USERNAME"),
-			Password:   os.Getenv("SMTP_PASSWORD"),
-			AppBaseURL: appBaseURL,
+			Host:            smtpHost,
+			Port:            smtpPort,
+			From:            smtpFrom,
+			Username:        os.Getenv("SMTP_USERNAME"),
+			Password:        os.Getenv("SMTP_PASSWORD"),
+			AppBaseURL:      appBaseURL,
+			FrontendBaseURL: frontendBaseURL,
 		},
 	}, nil
 
