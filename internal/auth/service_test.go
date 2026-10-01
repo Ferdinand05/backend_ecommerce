@@ -116,12 +116,16 @@ func (f *fakeSender) SendPasswordResetEmail(ctx context.Context, to string, toke
 }
 
 type fakeEmailVerifRepo struct {
-	createCalled bool
-	createErr    error
+	createCalled        bool
+	createErr           error
+	createdVerification models.EmailVerification
+	invalidateCalledID  uuid.UUID
+	invalidateErr       error
 }
 
 func (f *fakeEmailVerifRepo) Create(ctx context.Context, verification models.EmailVerification) error {
 	f.createCalled = true
+	f.createdVerification = verification
 	return f.createErr
 }
 
@@ -134,7 +138,8 @@ func (f *fakeEmailVerifRepo) MarkVerified(ctx context.Context, id uuid.UUID) err
 }
 
 func (f *fakeEmailVerifRepo) InvalidateUserTokens(ctx context.Context, userID uuid.UUID) error {
-	return nil
+	f.invalidateCalledID = userID
+	return f.invalidateErr
 }
 
 type fakeRefreshTokenRepo struct {
@@ -516,6 +521,64 @@ func TestLogout(t *testing.T) {
 
 			if tt.rtr.revokedID != tt.wantRevokedID {
 				t.Fatalf("Logout() revokedID = %v, want %v", tt.rtr.revokedID, tt.wantRevokedID)
+			}
+		})
+	}
+}
+
+func TestResendVerification(t *testing.T) {
+	dbErr := errors.New("db down")
+	verifiedAt := time.Now()
+
+	tests := []struct {
+		name     string
+		userRepo *fakeUserRepo
+		wantErr  error
+	}{
+		{
+			name:     "unknown email is silent",
+			userRepo: &fakeUserRepo{findByEmailErr: user.ErrorUserNotFound},
+		},
+		{
+			name: "already verified is a no-op",
+			userRepo: &fakeUserRepo{findByEmailRes: models.User{
+				EmailVerifiedAt: &verifiedAt,
+			}},
+		},
+		{
+			name:     "find error",
+			userRepo: &fakeUserRepo{findByEmailErr: dbErr},
+			wantErr:  dbErr,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			verifRepo := &fakeEmailVerifRepo{}
+			sender := &fakeSender{}
+			svc := newTestService(tt.userRepo, &fakeRoleRepo{}, &fakeJWT{}, sender, verifRepo, &fakeRefreshTokenRepo{})
+
+			err := svc.ResendVerification(context.Background(), "user@example.com")
+			if tt.wantErr != nil {
+				if err == nil {
+					t.Fatal("ResendVerification() error = nil, want error")
+				}
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("ResendVerification() error = %v, want %v", err, tt.wantErr)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("ResendVerification() error = %v", err)
+			}
+
+			if verifRepo.createCalled {
+				t.Fatal("ResendVerification() created a token unexpectedly")
+			}
+
+			if sender.sentTo != "" {
+				t.Fatal("ResendVerification() sent an email unexpectedly")
 			}
 		})
 	}

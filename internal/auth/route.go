@@ -13,5 +13,9 @@ func RegisterRoutes(rg *gin.RouterGroup, h *Handler) {
 		)
 		auth.POST("/refresh", h.Refresh)
 		auth.POST("/logout", h.Logout)
+		auth.POST(
+			"/email-verification/resend",
+			h.ResendVerification,
+		)
 	}
 }
