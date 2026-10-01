@@ -65,6 +65,35 @@ func (h *Handler) Login(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+func (h *Handler) Refresh(c *gin.Context) {
+	var req RefreshTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	resp, err := h.svc.Refresh(ctx, req.RefreshToken)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrorInvalidRefreshToken):
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid refresh token"})
+
+		case errors.Is(err, ErrorRefreshTokenExpired):
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh token expired"})
+
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to refresh token"})
+		}
+
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
 func (h *Handler) VerifyEmail(c *gin.Context) {
 
 	var req VerifyEmailRequest

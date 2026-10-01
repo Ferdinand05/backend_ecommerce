@@ -9,6 +9,8 @@ import (
 	"github.com/google/uuid"
 )
 
+const accessTokenDuration = 15 * time.Minute
+
 type Claims struct {
 	Email string `json:"email"`
 	Role  string `json:"role"`
@@ -36,7 +38,7 @@ func (j *JWTService) GenerateToken(userID uuid.UUID, email string, role string) 
 		Role:  role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID.String(),
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(accessTokenDuration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}

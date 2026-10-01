@@ -5,6 +5,7 @@ import (
 	"errors"
 	"ferdinand/ecommerce/internal/models"
 	"ferdinand/ecommerce/internal/user"
+	"ferdinand/ecommerce/utils/crypto"
 	"ferdinand/ecommerce/utils/token"
 	"testing"
 	"time"
@@ -137,5 +138,126 @@ func TestVerifyEmail(t *testing.T) {
 				t.Fatal("VerifyEmail() did not set verification VerifiedAt")
 			}
 		})
+	}
+}
+
+func TestLoginCreatesRefreshToken(t *testing.T) {
+	db := setupTestDB(t)
+
+	hash, err := crypto.HashPassword("password123")
+	if err != nil {
+		t.Fatalf("HashPassword() error = %v", err)
+	}
+
+	u := seedUser(t, db)
+
+	if err := db.Model(&models.User{}).Where("id = ?", u.ID).Update("password_hash", hash).Error; err != nil {
+		t.Fatalf("failed to set password hash: %v", err)
+	}
+
+	fakeJ := &fakeJWT{token: "access-token"}
+	svc := &service{
+		userRepo:         user.NewRepository(db),
+		jwtSvc:           fakeJ,
+		refreshTokenRepo: NewRefreshTokenRepository(db),
+		db:               db,
+	}
+
+	resp, err := svc.Login(context.Background(), LoginRequest{
+		Email:    u.Email,
+		Password: "password123",
+	})
+	if err != nil {
+		t.Fatalf("Login() error = %v", err)
+	}
+
+	if resp.AccessToken != "access-token" {
+		t.Fatalf("AccessToken = %q, want %q", resp.AccessToken, "access-token")
+	}
+
+	if resp.RefreshToken == "" {
+		t.Fatal("RefreshToken is empty")
+	}
+
+	if resp.ExpiresIn != 900 {
+		t.Fatalf("ExpiresIn = %d, want 900", resp.ExpiresIn)
+	}
+
+	if fakeJ.genRole != "customer" {
+		t.Fatalf("GenerateToken role = %q, want customer", fakeJ.genRole)
+	}
+
+	var stored models.RefreshToken
+	if err := db.Where("token_hash = ?", token.Hash(resp.RefreshToken)).First(&stored).Error; err != nil {
+		t.Fatalf("refresh token not stored: %v", err)
+	}
+
+	if stored.RevokedAt != nil {
+		t.Fatal("fresh refresh token marked revoked")
+	}
+}
+
+func TestRefreshRotation(t *testing.T) {
+	db := setupTestDB(t)
+
+	u := seedUser(t, db)
+
+	rawOld := "old-refresh-token"
+	old := models.RefreshToken{
+		ID:        uuid.New(),
+		UserID:    u.ID,
+		TokenHash: token.Hash(rawOld),
+		ExpiresAt: time.Now().Add(30 * 24 * time.Hour),
+	}
+
+	if err := db.Create(&old).Error; err != nil {
+		t.Fatalf("failed to seed refresh token: %v", err)
+	}
+
+	fakeJ := &fakeJWT{token: "new-access-token"}
+	svc := &service{
+		userRepo:         user.NewRepository(db),
+		jwtSvc:           fakeJ,
+		refreshTokenRepo: NewRefreshTokenRepository(db),
+		db:               db,
+	}
+
+	resp, err := svc.Refresh(context.Background(), rawOld)
+	if err != nil {
+		t.Fatalf("Refresh() error = %v", err)
+	}
+
+	if resp.AccessToken != "new-access-token" {
+		t.Fatalf("AccessToken = %q, want new-access-token", resp.AccessToken)
+	}
+
+	if resp.RefreshToken == "" || resp.RefreshToken == rawOld {
+		t.Fatal("RefreshToken not rotated")
+	}
+
+	if fakeJ.genRole != "customer" {
+		t.Fatalf("GenerateToken role = %q, want customer", fakeJ.genRole)
+	}
+
+	var oldStored models.RefreshToken
+	if err := db.Where("token_hash = ?", token.Hash(rawOld)).First(&oldStored).Error; err != nil {
+		t.Fatalf("old refresh token not found: %v", err)
+	}
+
+	if oldStored.RevokedAt == nil {
+		t.Fatal("old refresh token not revoked")
+	}
+
+	var newStored models.RefreshToken
+	if err := db.Where("token_hash = ?", token.Hash(resp.RefreshToken)).First(&newStored).Error; err != nil {
+		t.Fatalf("new refresh token not stored: %v", err)
+	}
+
+	if newStored.RevokedAt != nil {
+		t.Fatal("new refresh token marked revoked")
+	}
+
+	if newStored.ID == old.ID {
+		t.Fatal("new refresh token reused old ID")
 	}
 }

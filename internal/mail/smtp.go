@@ -7,12 +7,13 @@ import (
 )
 
 type SMTPConfig struct {
-	Host       string
-	Port       string
-	Username   string
-	Password   string
-	From       string
-	AppBaseURL string
+	Host            string
+	Port            string
+	Username        string
+	Password        string
+	From            string
+	AppBaseURL      string
+	FrontendBaseURL string
 }
 
 type SMTPSender struct {
@@ -32,7 +33,7 @@ func (s *SMTPSender) SendVerificationEmail(
 ) error {
 	verifyURL := fmt.Sprintf(
 		"%s/auth/email-verification/verify?token=%s",
-		s.cfg.AppBaseURL,
+		s.cfg.FrontendBaseURL,
 		token,
 	)
 
@@ -57,7 +58,7 @@ func (s *SMTPSender) SendPasswordResetEmail(
 ) error {
 	resetURL := fmt.Sprintf(
 		"%s/reset-password?token=%s",
-		s.cfg.AppBaseURL,
+		s.cfg,
 		token,
 	)
 
