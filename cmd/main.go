@@ -49,6 +49,7 @@ func main() {
 
 	emailVerificationRepo := auth.NewEmailVerificationRepository(db)
 	refreshTokenRepo := auth.NewRefreshTokenRepository(db)
+	passwordResetRepo := auth.NewPasswordResetRepository(db)
 	emailSender := mail.NewSMTPSender(mail.SMTPConfig(cfg.Mail))
 
 	authSvc := auth.NewService(
@@ -58,6 +59,7 @@ func main() {
 		emailSender,
 		emailVerificationRepo,
 		refreshTokenRepo,
+		passwordResetRepo,
 		db,
 	)
 	authHandler := auth.NewHandler(authSvc)

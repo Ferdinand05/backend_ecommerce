@@ -29,4 +29,16 @@ var (
 	ErrorRefreshTokenExpired = errors.New(
 		"refresh token expired",
 	)
+
+	ErrorInvalidResetToken = errors.New(
+		"invalid reset token",
+	)
+
+	ErrorResetTokenExpired = errors.New(
+		"reset token expired",
+	)
+
+	ErrorResetTokenUsed = errors.New(
+		"reset token used",
+	)
 )
