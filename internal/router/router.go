@@ -2,6 +2,7 @@ package router
 
 import (
 	"ferdinand/ecommerce/internal/auth"
+	"ferdinand/ecommerce/internal/category"
 	"ferdinand/ecommerce/internal/role"
 	"ferdinand/ecommerce/internal/user"
 	userJWT "ferdinand/ecommerce/utils/jwt"
@@ -10,9 +11,10 @@ import (
 )
 
 type RouteHandlers struct {
-	AuthHandler *auth.Handler
-	UserHandler *user.Handler
-	RoleHandler *role.Handler
+	AuthHandler     *auth.Handler
+	UserHandler     *user.Handler
+	RoleHandler     *role.Handler
+	CategoryHandler *category.Handler
 }
 
 func New(handlers RouteHandlers, jwtService *userJWT.JWTService) *gin.Engine {
@@ -24,6 +26,6 @@ func New(handlers RouteHandlers, jwtService *userJWT.JWTService) *gin.Engine {
 	auth.RegisterRoutes(v1, handlers.AuthHandler)
 	user.RegisterRoutes(v1, handlers.UserHandler)
 	role.RegisterRoutes(v1, handlers.RoleHandler)
-
+	category.RegisterRoutes(v1, handlers.CategoryHandler)
 	return r
 }
