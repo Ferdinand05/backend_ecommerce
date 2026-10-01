@@ -53,6 +53,10 @@ func (f *fakeUserRepo) MarkEmailVerified(ctx context.Context, userID uuid.UUID) 
 	return nil
 }
 
+func (f *fakeUserRepo) UpdatePassword(ctx context.Context, userID uuid.UUID, passwordHash string) error {
+	return nil
+}
+
 type fakeRoleRepo struct {
 	findByNameRes models.Role
 	findByNameErr error
@@ -100,9 +104,11 @@ func (f *fakeJWT) ValidateToken(tokenString string) (*userjwt.Claims, error) {
 }
 
 type fakeSender struct {
-	sentTo    string
-	sentToken string
-	sendErr   error
+	sentTo      string
+	sentToken   string
+	sendErr     error
+	resetSentTo string
+	resetErr    error
 }
 
 func (f *fakeSender) SendVerificationEmail(ctx context.Context, to string, token string) error {
@@ -112,7 +118,8 @@ func (f *fakeSender) SendVerificationEmail(ctx context.Context, to string, token
 }
 
 func (f *fakeSender) SendPasswordResetEmail(ctx context.Context, to string, token string) error {
-	return nil
+	f.resetSentTo = to
+	return f.resetErr
 }
 
 type fakeEmailVerifRepo struct {
@@ -143,12 +150,14 @@ func (f *fakeEmailVerifRepo) InvalidateUserTokens(ctx context.Context, userID uu
 }
 
 type fakeRefreshTokenRepo struct {
-	findByHashRes models.RefreshToken
-	findByHashErr error
-	revokedID     uuid.UUID
-	createdToken  models.RefreshToken
-	revokeErr     error
-	createErr     error
+	findByHashRes    models.RefreshToken
+	findByHashErr    error
+	revokedID        uuid.UUID
+	createdToken     models.RefreshToken
+	revokeErr        error
+	createErr        error
+	revokedAllUserID uuid.UUID
+	revokeAllErr     error
 }
 
 func (f *fakeRefreshTokenRepo) Create(ctx context.Context, refreshToken models.RefreshToken) error {
@@ -172,7 +181,40 @@ func (f *fakeRefreshTokenRepo) Revoke(ctx context.Context, id uuid.UUID) error {
 }
 
 func (f *fakeRefreshTokenRepo) RevokeAllByUserID(ctx context.Context, userID uuid.UUID) error {
-	return nil
+	f.revokedAllUserID = userID
+	return f.revokeAllErr
+}
+
+type fakePasswordResetRepo struct {
+	findByHashRes models.PasswordReset
+	findByHashErr error
+	createCalled  bool
+	createdReset  models.PasswordReset
+	createErr     error
+	markUsedID    uuid.UUID
+	markUsedErr   error
+	invalidateID  uuid.UUID
+	invalidateErr error
+}
+
+func (f *fakePasswordResetRepo) Create(ctx context.Context, reset models.PasswordReset) error {
+	f.createCalled = true
+	f.createdReset = reset
+	return f.createErr
+}
+
+func (f *fakePasswordResetRepo) FindByTokenHash(ctx context.Context, tokenHash string) (models.PasswordReset, error) {
+	return f.findByHashRes, f.findByHashErr
+}
+
+func (f *fakePasswordResetRepo) MarkUsed(ctx context.Context, id uuid.UUID) error {
+	f.markUsedID = id
+	return f.markUsedErr
+}
+
+func (f *fakePasswordResetRepo) InvalidateUserTokens(ctx context.Context, userID uuid.UUID) error {
+	f.invalidateID = userID
+	return f.invalidateErr
 }
 
 func newTestService(ur *fakeUserRepo, rr *fakeRoleRepo, jwt *fakeJWT, sender *fakeSender, evr *fakeEmailVerifRepo, rtr *fakeRefreshTokenRepo) *service {
@@ -579,6 +621,113 @@ func TestResendVerification(t *testing.T) {
 
 			if sender.sentTo != "" {
 				t.Fatal("ResendVerification() sent an email unexpectedly")
+			}
+		})
+	}
+}
+
+func TestForgotPassword(t *testing.T) {
+	dbErr := errors.New("db down")
+
+	tests := []struct {
+		name     string
+		userRepo *fakeUserRepo
+		pr       *fakePasswordResetRepo
+		wantErr  error
+	}{
+		{
+			name:     "unknown email is silent",
+			userRepo: &fakeUserRepo{findByEmailErr: user.ErrorUserNotFound},
+			pr:       &fakePasswordResetRepo{},
+		},
+		{
+			name:     "find error",
+			userRepo: &fakeUserRepo{findByEmailErr: dbErr},
+			pr:       &fakePasswordResetRepo{},
+			wantErr:  dbErr,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sender := &fakeSender{}
+			svc := &service{userRepo: tt.userRepo, passwordResetRepo: tt.pr, emailSender: sender}
+
+			err := svc.ForgotPassword(context.Background(), "user@example.com")
+			if tt.wantErr != nil {
+				if err == nil {
+					t.Fatal("ForgotPassword() error = nil, want error")
+				}
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("ForgotPassword() error = %v, want %v", err, tt.wantErr)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("ForgotPassword() error = %v", err)
+			}
+
+			if tt.pr.createCalled {
+				t.Fatal("ForgotPassword() created a token unexpectedly")
+			}
+
+			if sender.resetSentTo != "" {
+				t.Fatal("ForgotPassword() sent an email unexpectedly")
+			}
+		})
+	}
+}
+
+func TestResetPassword(t *testing.T) {
+	now := time.Now()
+	dbErr := errors.New("db down")
+	resetID := uuid.New()
+
+	tests := []struct {
+		name    string
+		pr      *fakePasswordResetRepo
+		wantErr error
+	}{
+		{
+			name:    "invalid token",
+			pr:      &fakePasswordResetRepo{findByHashErr: gorm.ErrRecordNotFound},
+			wantErr: ErrorInvalidResetToken,
+		},
+		{
+			name: "token used",
+			pr: &fakePasswordResetRepo{findByHashRes: models.PasswordReset{
+				ID:        resetID,
+				UsedAt:    &now,
+				ExpiresAt: now.Add(time.Hour),
+			}},
+			wantErr: ErrorResetTokenUsed,
+		},
+		{
+			name: "token expired",
+			pr: &fakePasswordResetRepo{findByHashRes: models.PasswordReset{
+				ID:        resetID,
+				ExpiresAt: now.Add(-time.Minute),
+			}},
+			wantErr: ErrorResetTokenExpired,
+		},
+		{
+			name:    "find error",
+			pr:      &fakePasswordResetRepo{findByHashErr: dbErr},
+			wantErr: dbErr,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &service{passwordResetRepo: tt.pr}
+
+			err := svc.ResetPassword(context.Background(), "raw-token", "newpassword123")
+			if err == nil {
+				t.Fatal("ResetPassword() error = nil, want error")
+			}
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("ResetPassword() error = %v, want %v", err, tt.wantErr)
 			}
 		})
 	}

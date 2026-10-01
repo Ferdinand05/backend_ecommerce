@@ -390,3 +390,174 @@ func TestResendVerificationIntegration(t *testing.T) {
 		}
 	})
 }
+
+func TestForgotPasswordIntegration(t *testing.T) {
+	t.Run("existing user gets token and email", func(t *testing.T) {
+		db := setupTestDB(t)
+
+		u := seedUser(t, db)
+
+		old := models.PasswordReset{
+			ID:        uuid.New(),
+			UserID:    u.ID,
+			TokenHash: token.Hash("old-reset-token"),
+			ExpiresAt: time.Now().Add(30 * time.Minute),
+		}
+
+		if err := db.Create(&old).Error; err != nil {
+			t.Fatalf("failed to seed password reset: %v", err)
+		}
+
+		sender := &fakeSender{}
+		svc := &service{
+			userRepo:          user.NewRepository(db),
+			passwordResetRepo: NewPasswordResetRepository(db),
+			emailSender:       sender,
+			db:                db,
+		}
+
+		if err := svc.ForgotPassword(context.Background(), strings.ToUpper(u.Email)); err != nil {
+			t.Fatalf("ForgotPassword() error = %v", err)
+		}
+
+		var oldStored models.PasswordReset
+		if err := db.Where("token_hash = ?", token.Hash("old-reset-token")).First(&oldStored).Error; err != nil {
+			t.Fatalf("old reset token not found: %v", err)
+		}
+
+		if oldStored.ExpiresAt.After(time.Now()) {
+			t.Fatal("old reset token still active after forgot password")
+		}
+
+		var active []models.PasswordReset
+		if err := db.Where("user_id = ? AND used_at IS NULL AND expires_at > ?", u.ID, time.Now()).Find(&active).Error; err != nil {
+			t.Fatalf("failed to query active reset tokens: %v", err)
+		}
+
+		if len(active) != 1 {
+			t.Fatalf("active reset tokens = %d, want 1", len(active))
+		}
+
+		if sender.resetSentTo != u.Email {
+			t.Fatalf("reset email sent to %q, want %q", sender.resetSentTo, u.Email)
+		}
+	})
+
+	t.Run("unknown email is silent", func(t *testing.T) {
+		db := setupTestDB(t)
+
+		sender := &fakeSender{}
+		svc := &service{
+			userRepo:          user.NewRepository(db),
+			passwordResetRepo: NewPasswordResetRepository(db),
+			emailSender:       sender,
+			db:                db,
+		}
+
+		if err := svc.ForgotPassword(context.Background(), "missing@example.com"); err != nil {
+			t.Fatalf("ForgotPassword() error = %v", err)
+		}
+
+		var count int64
+		if err := db.Model(&models.PasswordReset{}).Count(&count).Error; err != nil {
+			t.Fatalf("failed to count reset tokens: %v", err)
+		}
+
+		if count != 0 {
+			t.Fatalf("reset tokens created = %d, want 0", count)
+		}
+
+		if sender.resetSentTo != "" {
+			t.Fatal("email sent for unknown user")
+		}
+	})
+}
+
+func TestResetPasswordIntegration(t *testing.T) {
+	db := setupTestDB(t)
+
+	u := seedUser(t, db)
+	otherU := seedUser(t, db)
+
+	raw := "reset-raw-token"
+	reset := models.PasswordReset{
+		ID:        uuid.New(),
+		UserID:    u.ID,
+		TokenHash: token.Hash(raw),
+		ExpiresAt: time.Now().Add(30 * time.Minute),
+	}
+
+	if err := db.Create(&reset).Error; err != nil {
+		t.Fatalf("failed to seed password reset: %v", err)
+	}
+
+	userToken := models.RefreshToken{
+		ID:        uuid.New(),
+		UserID:    u.ID,
+		TokenHash: "user-refresh-hash",
+		ExpiresAt: time.Now().Add(30 * 24 * time.Hour),
+	}
+	otherToken := models.RefreshToken{
+		ID:        uuid.New(),
+		UserID:    otherU.ID,
+		TokenHash: "other-refresh-hash",
+		ExpiresAt: time.Now().Add(30 * 24 * time.Hour),
+	}
+
+	for _, rt := range []models.RefreshToken{userToken, otherToken} {
+		if err := db.Create(&rt).Error; err != nil {
+			t.Fatalf("failed to seed refresh token: %v", err)
+		}
+	}
+
+	svc := &service{
+		userRepo:          user.NewRepository(db),
+		refreshTokenRepo:  NewRefreshTokenRepository(db),
+		passwordResetRepo: NewPasswordResetRepository(db),
+		db:                db,
+	}
+
+	if err := svc.ResetPassword(context.Background(), raw, "newpassword123"); err != nil {
+		t.Fatalf("ResetPassword() error = %v", err)
+	}
+
+	updated, err := user.NewRepository(db).FindByID(context.Background(), u.ID)
+	if err != nil {
+		t.Fatalf("FindByID() error = %v", err)
+	}
+
+	if !crypto.CheckPassword("newpassword123", updated.PasswordHash) {
+		t.Fatal("ResetPassword() did not update the password hash")
+	}
+
+	var storedReset models.PasswordReset
+	if err := db.Where("token_hash = ?", token.Hash(raw)).First(&storedReset).Error; err != nil {
+		t.Fatalf("reset token not found: %v", err)
+	}
+
+	if storedReset.UsedAt == nil {
+		t.Fatal("ResetPassword() did not mark token used")
+	}
+
+	if err := svc.ResetPassword(context.Background(), raw, "anotherpass123"); !errors.Is(err, ErrorResetTokenUsed) {
+		t.Fatalf("ResetPassword() reuse error = %v, want %v", err, ErrorResetTokenUsed)
+	}
+
+	var userRefresh models.RefreshToken
+	if err := db.Where("token_hash = ?", "user-refresh-hash").First(&userRefresh).Error; err != nil {
+		t.Fatalf("user refresh token not found: %v", err)
+	}
+
+	if userRefresh.RevokedAt == nil {
+		t.Fatal("ResetPassword() did not revoke user refresh tokens")
+	}
+
+	var otherRefresh models.RefreshToken
+	if err := db.Where("token_hash = ?", "other-refresh-hash").First(&otherRefresh).Error; err != nil {
+		t.Fatalf("other refresh token not found: %v", err)
+	}
+
+	if otherRefresh.RevokedAt != nil {
+		t.Fatal("ResetPassword() revoked another user's refresh token")
+	}
+}

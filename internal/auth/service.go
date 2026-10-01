@@ -41,28 +41,41 @@ type Service interface {
 		ctx context.Context,
 		email string,
 	) error
+
+	ForgotPassword(
+		ctx context.Context,
+		email string,
+	) error
+
+	ResetPassword(
+		ctx context.Context,
+		rawToken string,
+		newPassword string,
+	) error
 }
 
 type service struct {
-	userRepo         user.Repository
-	roleRepo         role.Repository
-	jwtSvc           userjwt.JWTManager
-	emailSender      mail.Sender
-	emailVerifRepo   EmailVerificationRepository
-	db               *gorm.DB
-	refreshTokenRepo RefreshTokenRepository
+	userRepo          user.Repository
+	roleRepo          role.Repository
+	jwtSvc            userjwt.JWTManager
+	emailSender       mail.Sender
+	emailVerifRepo    EmailVerificationRepository
+	db                *gorm.DB
+	refreshTokenRepo  RefreshTokenRepository
+	passwordResetRepo PasswordResetRepository
 }
 
 func NewService(userRepo user.Repository, roleRepo role.Repository, jwtSvc userjwt.JWTManager, emailSender mail.Sender, emailVerifRepo EmailVerificationRepository,
-	refreshTokenRepo RefreshTokenRepository, db *gorm.DB) *service {
+	refreshTokenRepo RefreshTokenRepository, passwordResetRepo PasswordResetRepository, db *gorm.DB) *service {
 	return &service{
-		userRepo:         userRepo,
-		roleRepo:         roleRepo,
-		jwtSvc:           jwtSvc,
-		emailSender:      emailSender,
-		emailVerifRepo:   emailVerifRepo,
-		refreshTokenRepo: refreshTokenRepo,
-		db:               db,
+		userRepo:          userRepo,
+		roleRepo:          roleRepo,
+		jwtSvc:            jwtSvc,
+		emailSender:       emailSender,
+		emailVerifRepo:    emailVerifRepo,
+		refreshTokenRepo:  refreshTokenRepo,
+		passwordResetRepo: passwordResetRepo,
+		db:                db,
 	}
 }
 
@@ -431,6 +444,122 @@ func (s *service) ResendVerification(
 		rawToken,
 	); err != nil {
 		return fmt.Errorf("sending verification email: %w", err)
+	}
+
+	return nil
+}
+
+func (s *service) ForgotPassword(
+	ctx context.Context,
+	email string,
+) error {
+	email = strings.ToLower(
+		strings.TrimSpace(email),
+	)
+
+	u, err := s.userRepo.FindByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, user.ErrorUserNotFound) {
+			return nil
+		}
+
+		return fmt.Errorf("finding user: %w", err)
+	}
+
+	rawToken, err := token.Generate()
+	if err != nil {
+		return fmt.Errorf("generating reset token: %w", err)
+	}
+
+	reset := models.PasswordReset{
+		ID:        uuid.New(),
+		UserID:    u.ID,
+		TokenHash: token.Hash(rawToken),
+		ExpiresAt: time.Now().Add(30 * time.Minute),
+	}
+
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		txCtx := database.InjectTx(ctx, tx)
+
+		if err := s.passwordResetRepo.InvalidateUserTokens(
+			txCtx,
+			u.ID,
+		); err != nil {
+			return err
+		}
+
+		return s.passwordResetRepo.Create(txCtx, reset)
+	}); err != nil {
+		return fmt.Errorf("creating password reset: %w", err)
+	}
+
+	if err := s.emailSender.SendPasswordResetEmail(
+		ctx,
+		u.Email,
+		rawToken,
+	); err != nil {
+		return fmt.Errorf("sending password reset email: %w", err)
+	}
+
+	return nil
+}
+
+func (s *service) ResetPassword(
+	ctx context.Context,
+	rawToken string,
+	newPassword string,
+) error {
+	tokenHash := token.Hash(rawToken)
+
+	reset, err := s.passwordResetRepo.FindByTokenHash(
+		ctx,
+		tokenHash,
+	)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrorInvalidResetToken
+		}
+
+		return fmt.Errorf("finding password reset: %w", err)
+	}
+
+	if reset.UsedAt != nil {
+		return ErrorResetTokenUsed
+	}
+
+	if time.Now().After(reset.ExpiresAt) {
+		return ErrorResetTokenExpired
+	}
+
+	hash, err := crypto.HashPassword(newPassword)
+	if err != nil {
+		return fmt.Errorf("hashing password: %w", err)
+	}
+
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		txCtx := database.InjectTx(ctx, tx)
+
+		if err := s.userRepo.UpdatePassword(
+			txCtx,
+			reset.UserID,
+			hash,
+		); err != nil {
+			return err
+		}
+
+		if err := s.passwordResetRepo.MarkUsed(
+			txCtx,
+			reset.ID,
+		); err != nil {
+			return err
+		}
+
+		return s.refreshTokenRepo.RevokeAllByUserID(
+			txCtx,
+			reset.UserID,
+		)
+	}); err != nil {
+		return fmt.Errorf("resetting password: %w", err)
 	}
 
 	return nil

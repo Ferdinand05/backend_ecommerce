@@ -17,5 +17,7 @@ func RegisterRoutes(rg *gin.RouterGroup, h *Handler) {
 			"/email-verification/resend",
 			h.ResendVerification,
 		)
+		auth.POST("/password/forgot", h.ForgotPassword)
+		auth.POST("/password/reset", h.ResetPassword)
 	}
 }

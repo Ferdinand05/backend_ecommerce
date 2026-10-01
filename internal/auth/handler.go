@@ -112,6 +112,55 @@ func (h *Handler) ResendVerification(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+func (h *Handler) ForgotPassword(c *gin.Context) {
+	var req ForgotPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	if err := h.svc.ForgotPassword(ctx, req.Email); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to request password reset"})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+func (h *Handler) ResetPassword(c *gin.Context) {
+	var req ResetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	if err := h.svc.ResetPassword(ctx, req.Token, req.NewPassword); err != nil {
+		switch {
+		case errors.Is(err, ErrorInvalidResetToken):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid reset token"})
+
+		case errors.Is(err, ErrorResetTokenExpired):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "reset token expired"})
+
+		case errors.Is(err, ErrorResetTokenUsed):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "reset token already used"})
+
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to reset password"})
+		}
+
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
 func (h *Handler) Logout(c *gin.Context) {
 	var req LogoutRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

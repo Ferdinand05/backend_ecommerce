@@ -200,3 +200,36 @@ func TestRepositoryMarkEmailVerifiedUserNotFound(t *testing.T) {
 		t.Fatalf("MarkEmailVerified() error = %v, want %v", err, ErrorUserNotFound)
 	}
 }
+
+func TestRepositoryUpdatePassword(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+
+	user := newTestUser()
+	if _, err := repo.Create(context.Background(), user); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	if err := repo.UpdatePassword(context.Background(), user.ID, "new-hash"); err != nil {
+		t.Fatalf("UpdatePassword() error = %v", err)
+	}
+
+	found, err := repo.FindByID(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("FindByID() error = %v", err)
+	}
+
+	if found.PasswordHash != "new-hash" {
+		t.Fatalf("PasswordHash = %q, want %q", found.PasswordHash, "new-hash")
+	}
+}
+
+func TestRepositoryUpdatePasswordUserNotFound(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+
+	err := repo.UpdatePassword(context.Background(), uuid.New(), "new-hash")
+	if !errors.Is(err, ErrorUserNotFound) {
+		t.Fatalf("UpdatePassword() error = %v, want %v", err, ErrorUserNotFound)
+	}
+}

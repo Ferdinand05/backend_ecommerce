@@ -45,6 +45,10 @@ func (f *fakeRepo) MarkEmailVerified(ctx context.Context, userID uuid.UUID) erro
 	return nil
 }
 
+func (f *fakeRepo) UpdatePassword(ctx context.Context, userID uuid.UUID, passwordHash string) error {
+	return nil
+}
+
 func TestServiceFindAll(t *testing.T) {
 	dbErr := errors.New("db down")
 

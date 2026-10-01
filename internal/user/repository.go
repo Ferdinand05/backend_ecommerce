@@ -22,6 +22,12 @@ type Repository interface {
 		ctx context.Context,
 		userID uuid.UUID,
 	) error
+
+	UpdatePassword(
+		ctx context.Context,
+		userID uuid.UUID,
+		passwordHash string,
+	) error
 }
 
 type repository struct {
@@ -109,6 +115,29 @@ func (r *repository) MarkEmailVerified(
 
 	if result.Error != nil {
 		return fmt.Errorf("marking user email verified: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return ErrorUserNotFound
+	}
+
+	return nil
+}
+
+func (r *repository) UpdatePassword(
+	ctx context.Context,
+	userID uuid.UUID,
+	passwordHash string,
+) error {
+	db := database.GetDB(ctx, r.db).WithContext(ctx)
+
+	result := db.
+		Model(&models.User{}).
+		Where("id = ?", userID).
+		Update("password_hash", passwordHash)
+
+	if result.Error != nil {
+		return fmt.Errorf("updating user password: %w", result.Error)
 	}
 
 	if result.RowsAffected == 0 {
