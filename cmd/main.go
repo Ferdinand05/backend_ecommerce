@@ -48,6 +48,7 @@ func main() {
 	roleHandler := role.NewHandler(roleSvc)
 
 	emailVerificationRepo := auth.NewEmailVerificationRepository(db)
+	refreshTokenRepo := auth.NewRefreshTokenRepository(db)
 	emailSender := mail.NewSMTPSender(mail.SMTPConfig(cfg.Mail))
 
 	authSvc := auth.NewService(
@@ -56,6 +57,7 @@ func main() {
 		jwtSvc,
 		emailSender,
 		emailVerificationRepo,
+		refreshTokenRepo,
 		db,
 	)
 	authHandler := auth.NewHandler(authSvc)

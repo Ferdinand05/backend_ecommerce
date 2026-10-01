@@ -23,12 +23,13 @@ type JWTConfig struct {
 }
 
 type MailConfig struct {
-	Host       string
-	Port       string
-	Username   string
-	Password   string
-	From       string
-	AppBaseURL string
+	Host            string
+	Port            string
+	Username        string
+	Password        string
+	From            string
+	AppBaseURL      string
+	FrontendBaseURL string
 }
 
 type Config struct {
@@ -81,6 +82,10 @@ func Load() (Config, error) {
 	appBaseURL := os.Getenv("APP_BASE_URL")
 	if appBaseURL == "" {
 		appBaseURL = "http://localhost:8080"
+	}
+	frontendBaseURL := os.Getenv("APP_BASE_URL")
+	if frontendBaseURL == "" {
+		frontendBaseURL = "http://localhost:5173"
 	}
 
 	smtpHost := os.Getenv("SMTP_HOST")

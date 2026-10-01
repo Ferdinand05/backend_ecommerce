@@ -26,26 +26,33 @@ type Service interface {
 		ctx context.Context,
 		rawToken string,
 	) error
+
+	Refresh(
+		ctx context.Context,
+		rawRefreshToken string,
+	) (LoginResponse, error)
 }
 
 type service struct {
-	userRepo       user.Repository
-	roleRepo       role.Repository
-	jwtSvc         userjwt.JWTManager
-	emailSender    mail.Sender
-	emailVerifRepo EmailVerificationRepository
-	db             *gorm.DB
+	userRepo         user.Repository
+	roleRepo         role.Repository
+	jwtSvc           userjwt.JWTManager
+	emailSender      mail.Sender
+	emailVerifRepo   EmailVerificationRepository
+	db               *gorm.DB
+	refreshTokenRepo RefreshTokenRepository
 }
 
 func NewService(userRepo user.Repository, roleRepo role.Repository, jwtSvc userjwt.JWTManager, emailSender mail.Sender, emailVerifRepo EmailVerificationRepository,
-	db *gorm.DB) *service {
+	refreshTokenRepo RefreshTokenRepository, db *gorm.DB) *service {
 	return &service{
-		userRepo:       userRepo,
-		roleRepo:       roleRepo,
-		jwtSvc:         jwtSvc,
-		emailSender:    emailSender,
-		emailVerifRepo: emailVerifRepo,
-		db:             db,
+		userRepo:         userRepo,
+		roleRepo:         roleRepo,
+		jwtSvc:           jwtSvc,
+		emailSender:      emailSender,
+		emailVerifRepo:   emailVerifRepo,
+		refreshTokenRepo: refreshTokenRepo,
+		db:               db,
 	}
 }
 
@@ -136,14 +143,53 @@ func (s *service) Login(ctx context.Context, req LoginRequest) (LoginResponse, e
 		return LoginResponse{}, ErrorInvalidCredentials
 	}
 
-	token, err := s.jwtSvc.GenerateToken(u.ID, u.Email, u.Role.Name)
+	// 15 minutes token
+	accessToken, err := s.jwtSvc.GenerateToken(
+		u.ID,
+		u.Email,
+		u.Role.Name,
+	)
 	if err != nil {
 		return LoginResponse{}, err
 	}
 
+	rawRefreshToken, err := token.Generate()
+	if err != nil {
+		return LoginResponse{},
+			fmt.Errorf("generating refresh token: %w", err)
+	}
+
+	// refresh token 30 days
+	refreshTokenHash := token.Hash(rawRefreshToken)
+
+	refreshToken := models.RefreshToken{
+		ID:        uuid.New(),
+		UserID:    u.ID,
+		TokenHash: refreshTokenHash,
+		ExpiresAt: time.Now().Add(30 * 24 * time.Hour),
+	}
+
+	err = s.db.Transaction(func(tx *gorm.DB) error {
+
+		txCtx := database.InjectTx(ctx, tx)
+
+		return s.refreshTokenRepo.Create(
+			txCtx,
+			refreshToken,
+		)
+
+	})
+
+	if err != nil {
+		return LoginResponse{},
+			fmt.Errorf("creating refresh token: %w", err)
+	}
+
 	return LoginResponse{
-		Token: token,
-		User:  user.ToUserResponse(u),
+		AccessToken:  accessToken,
+		RefreshToken: rawRefreshToken,
+		ExpiresIn:    int64((15 * time.Minute).Seconds()),
+		User:         user.ToUserResponse(u),
 	}, nil
 }
 
@@ -199,4 +245,89 @@ func (s *service) VerifyEmail(
 
 	return nil
 
+}
+
+func (s *service) Refresh(
+	ctx context.Context,
+	rawRefreshToken string,
+) (LoginResponse, error) {
+	tokenHash := token.Hash(rawRefreshToken)
+
+	rt, err := s.refreshTokenRepo.FindByTokenHash(
+		ctx,
+		tokenHash,
+	)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return LoginResponse{}, ErrorInvalidRefreshToken
+		}
+
+		return LoginResponse{},
+			fmt.Errorf("finding refresh token: %w", err)
+	}
+
+	if rt.RevokedAt != nil {
+		return LoginResponse{}, ErrorInvalidRefreshToken
+	}
+
+	if time.Now().After(rt.ExpiresAt) {
+		return LoginResponse{}, ErrorRefreshTokenExpired
+	}
+
+	u, err := s.userRepo.FindByID(ctx, rt.UserID)
+	if err != nil {
+		if errors.Is(err, user.ErrorUserNotFound) {
+			return LoginResponse{}, ErrorInvalidRefreshToken
+		}
+
+		return LoginResponse{}, err
+	}
+
+	accessToken, err := s.jwtSvc.GenerateToken(
+		u.ID,
+		u.Email,
+		u.Role.Name,
+	)
+	if err != nil {
+		return LoginResponse{}, err
+	}
+
+	newRawToken, err := token.Generate()
+	if err != nil {
+		return LoginResponse{},
+			fmt.Errorf("generating refresh token: %w", err)
+	}
+
+	newRefreshToken := models.RefreshToken{
+		ID:        uuid.New(),
+		UserID:    u.ID,
+		TokenHash: token.Hash(newRawToken),
+		ExpiresAt: time.Now().Add(30 * 24 * time.Hour),
+	}
+
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		txCtx := database.InjectTx(ctx, tx)
+
+		if err := s.refreshTokenRepo.Revoke(
+			txCtx,
+			rt.ID,
+		); err != nil {
+			return err
+		}
+
+		return s.refreshTokenRepo.Create(
+			txCtx,
+			newRefreshToken,
+		)
+	}); err != nil {
+		return LoginResponse{},
+			fmt.Errorf("rotating refresh token: %w", err)
+	}
+
+	return LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: newRawToken,
+		ExpiresIn:    int64((15 * time.Minute).Seconds()),
+		User:         user.ToUserResponse(u),
+	}, nil
 }

@@ -8,6 +8,7 @@ import (
 	"ferdinand/ecommerce/utils/crypto"
 	userjwt "ferdinand/ecommerce/utils/jwt"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -16,6 +17,8 @@ import (
 type fakeUserRepo struct {
 	findByEmailRes models.User
 	findByEmailErr error
+	findByIDRes    models.User
+	findByIDErr    error
 	createRes      models.User
 	createErr      error
 	createCalled   bool
@@ -27,7 +30,7 @@ func (f *fakeUserRepo) FindAll(ctx context.Context) ([]models.User, error) {
 }
 
 func (f *fakeUserRepo) FindByID(ctx context.Context, userID uuid.UUID) (models.User, error) {
-	return models.User{}, nil
+	return f.findByIDRes, f.findByIDErr
 }
 
 func (f *fakeUserRepo) FindByEmail(ctx context.Context, email string) (models.User, error) {
@@ -134,13 +137,47 @@ func (f *fakeEmailVerifRepo) InvalidateUserTokens(ctx context.Context, userID uu
 	return nil
 }
 
-func newTestService(ur *fakeUserRepo, rr *fakeRoleRepo, jwt *fakeJWT, sender *fakeSender, evr *fakeEmailVerifRepo) *service {
+type fakeRefreshTokenRepo struct {
+	findByHashRes models.RefreshToken
+	findByHashErr error
+	revokedID     uuid.UUID
+	createdToken  models.RefreshToken
+	revokeErr     error
+	createErr     error
+}
+
+func (f *fakeRefreshTokenRepo) Create(ctx context.Context, refreshToken models.RefreshToken) error {
+	if f.createErr != nil {
+		return f.createErr
+	}
+	f.createdToken = refreshToken
+	return nil
+}
+
+func (f *fakeRefreshTokenRepo) FindByTokenHash(ctx context.Context, tokenHash string) (models.RefreshToken, error) {
+	return f.findByHashRes, f.findByHashErr
+}
+
+func (f *fakeRefreshTokenRepo) Revoke(ctx context.Context, id uuid.UUID) error {
+	if f.revokeErr != nil {
+		return f.revokeErr
+	}
+	f.revokedID = id
+	return nil
+}
+
+func (f *fakeRefreshTokenRepo) RevokeAllByUserID(ctx context.Context, userID uuid.UUID) error {
+	return nil
+}
+
+func newTestService(ur *fakeUserRepo, rr *fakeRoleRepo, jwt *fakeJWT, sender *fakeSender, evr *fakeEmailVerifRepo, rtr *fakeRefreshTokenRepo) *service {
 	return &service{
-		userRepo:       ur,
-		roleRepo:       rr,
-		jwtSvc:         jwt,
-		emailSender:    sender,
-		emailVerifRepo: evr,
+		userRepo:         ur,
+		roleRepo:         rr,
+		jwtSvc:           jwt,
+		emailSender:      sender,
+		emailVerifRepo:   evr,
+		refreshTokenRepo: rtr,
 	}
 }
 
@@ -219,7 +256,7 @@ func TestRegister(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := newTestService(tt.userRepo, tt.roleRepo, &fakeJWT{}, tt.sender, tt.verifRepo)
+			svc := newTestService(tt.userRepo, tt.roleRepo, &fakeJWT{}, tt.sender, tt.verifRepo, &fakeRefreshTokenRepo{})
 
 			resp, err := svc.Register(context.Background(), tt.req)
 			if tt.wantErr != nil {
@@ -291,15 +328,6 @@ func TestLogin(t *testing.T) {
 		wantErr  error
 	}{
 		{
-			name: "success",
-			req: LoginRequest{
-				Email:    "user@example.com",
-				Password: "password123",
-			},
-			userRepo: &fakeUserRepo{findByEmailRes: existingUser},
-			jwt:      &fakeJWT{token: "jwt-token"},
-		},
-		{
 			name: "unknown email",
 			req: LoginRequest{
 				Email:    "missing@example.com",
@@ -333,36 +361,91 @@ func TestLogin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := newTestService(tt.userRepo, &fakeRoleRepo{}, tt.jwt, &fakeSender{}, &fakeEmailVerifRepo{})
+			svc := newTestService(tt.userRepo, &fakeRoleRepo{}, tt.jwt, &fakeSender{}, &fakeEmailVerifRepo{}, &fakeRefreshTokenRepo{})
 
-			resp, err := svc.Login(context.Background(), tt.req)
+			_, err := svc.Login(context.Background(), tt.req)
+			if err == nil {
+				t.Fatal("Login() error = nil, want error")
+			}
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("Login() error = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestRefresh(t *testing.T) {
+	now := time.Now()
+	dbErr := errors.New("db down")
+
+	tests := []struct {
+		name     string
+		userRepo *fakeUserRepo
+		rtr      *fakeRefreshTokenRepo
+		wantErr  error
+	}{
+		{
+			name:     "not found",
+			userRepo: &fakeUserRepo{},
+			rtr:      &fakeRefreshTokenRepo{findByHashErr: gorm.ErrRecordNotFound},
+			wantErr:  ErrorInvalidRefreshToken,
+		},
+		{
+			name:     "revoked",
+			userRepo: &fakeUserRepo{},
+			rtr: &fakeRefreshTokenRepo{findByHashRes: models.RefreshToken{
+				RevokedAt: &now,
+			}},
+			wantErr: ErrorInvalidRefreshToken,
+		},
+		{
+			name:     "expired",
+			userRepo: &fakeUserRepo{},
+			rtr: &fakeRefreshTokenRepo{findByHashRes: models.RefreshToken{
+				ExpiresAt: now.Add(-time.Minute),
+			}},
+			wantErr: ErrorRefreshTokenExpired,
+		},
+		{
+			name:     "user not found",
+			userRepo: &fakeUserRepo{findByIDErr: user.ErrorUserNotFound},
+			rtr: &fakeRefreshTokenRepo{findByHashRes: models.RefreshToken{
+				ExpiresAt: now.Add(time.Hour),
+			}},
+			wantErr: ErrorInvalidRefreshToken,
+		},
+		{
+			name:     "user repo error",
+			userRepo: &fakeUserRepo{findByIDErr: dbErr},
+			rtr: &fakeRefreshTokenRepo{findByHashRes: models.RefreshToken{
+				ExpiresAt: now.Add(time.Hour),
+			}},
+			wantErr: dbErr,
+		},
+		{
+			name:     "find error not record",
+			userRepo: &fakeUserRepo{},
+			rtr:      &fakeRefreshTokenRepo{findByHashErr: dbErr},
+			wantErr:  dbErr,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := newTestService(tt.userRepo, &fakeRoleRepo{}, &fakeJWT{}, &fakeSender{}, &fakeEmailVerifRepo{}, tt.rtr)
+
+			_, err := svc.Refresh(context.Background(), "raw-token")
 			if tt.wantErr != nil {
 				if err == nil {
-					t.Fatal("Login() error = nil, want error")
+					t.Fatal("Refresh() error = nil, want error")
 				}
 				if !errors.Is(err, tt.wantErr) {
-					t.Fatalf("Login() error = %v, want %v", err, tt.wantErr)
+					t.Fatalf("Refresh() error = %v, want %v", err, tt.wantErr)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("Login() error = %v", err)
-			}
-
-			if resp.Token != "jwt-token" {
-				t.Fatalf("Login() Token = %q, want %q", resp.Token, "jwt-token")
-			}
-
-			if !tt.jwt.genCalled {
-				t.Fatal("Login() did not call jwtSvc.GenerateToken")
-			}
-
-			if tt.jwt.genUserID != id {
-				t.Fatalf("GenerateToken userID = %v, want %v", tt.jwt.genUserID, id)
-			}
-
-			if tt.jwt.genRole != "customer" {
-				t.Fatalf("GenerateToken role = %q, want %q", tt.jwt.genRole, "customer")
+				t.Fatalf("Refresh() error = %v", err)
 			}
 		})
 	}

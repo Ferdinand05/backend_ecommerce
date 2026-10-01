@@ -11,5 +11,6 @@ func RegisterRoutes(rg *gin.RouterGroup, h *Handler) {
 			"/email-verification/verify",
 			h.VerifyEmail,
 		)
+		auth.POST("/refresh", h.Refresh)
 	}
 }

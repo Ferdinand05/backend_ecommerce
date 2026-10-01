@@ -50,7 +50,10 @@ func (r *repository) FindByID(ctx context.Context, userID uuid.UUID) (models.Use
 
 	var user models.User
 
-	err := r.db.WithContext(ctx).First(&user, userID).Error
+	err := r.db.WithContext(ctx).
+		Preload("Role").
+		First(&user, userID).
+		Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return models.User{}, ErrorUserNotFound
