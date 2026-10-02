@@ -192,4 +192,3 @@ func TestVariantServiceDelete(t *testing.T) {
 		t.Fatalf("Delete() after Delete error = %v, want %v", err, ErrorProductVariantNotFound)
 	}
 }
-
