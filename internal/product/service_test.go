@@ -19,7 +19,7 @@ type fakeRepo struct {
 	findBySlugRes models.Product
 	findBySlugErr error
 
-	existsBySlug bool
+	existsBySlug    bool
 	existsBySlugErr error
 
 	createRes models.Product

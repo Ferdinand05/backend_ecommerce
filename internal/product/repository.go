@@ -11,7 +11,7 @@ import (
 )
 
 type Repository interface {
-	Create(ctx context.Context, product models.Product) (models.Product,error)
+	Create(ctx context.Context, product models.Product) (models.Product, error)
 
 	FindAll(ctx context.Context) ([]models.Product, error)
 
@@ -21,7 +21,7 @@ type Repository interface {
 
 	ExistsBySlug(ctx context.Context, slug string) (bool, error)
 
-	Update(ctx context.Context, id uuid.UUID, product models.Product) (models.Product,error)
+	Update(ctx context.Context, id uuid.UUID, product models.Product) (models.Product, error)
 
 	Delete(ctx context.Context, id uuid.UUID) error
 }
@@ -30,88 +30,86 @@ type repository struct {
 	db *gorm.DB
 }
 
-
 func NewRepository(db *gorm.DB) *repository {
-	return &repository{db:db}
+	return &repository{db: db}
 }
 
-
-func (r *repository) Create(ctx context.Context,product models.Product) (models.Product,error) {
+func (r *repository) Create(ctx context.Context, product models.Product) (models.Product, error) {
 
 	err := r.db.WithContext(ctx).Create(&product).Error
 	if err != nil {
-		return models.Product{},fmt.Errorf("creating product:%w",err)
+		return models.Product{}, fmt.Errorf("creating product:%w", err)
 	}
 
 	var createdProduct models.Product
 	err = r.db.WithContext(ctx).
-	Preload("Category").
-	First(&createdProduct,product.ID).
-	Error
+		Preload("Category").
+		First(&createdProduct, product.ID).
+		Error
 
 	if err != nil {
-		return models.Product{},fmt.Errorf("finding created record:%w",err)
+		return models.Product{}, fmt.Errorf("finding created record:%w", err)
 	}
 
-	return createdProduct,nil
+	return createdProduct, nil
 
 }
 
-func (r *repository) FindAll(ctx context.Context) ([]models.Product,error) {
+func (r *repository) FindAll(ctx context.Context) ([]models.Product, error) {
 
 	var products []models.Product
 
 	err := r.db.WithContext(ctx).Preload("Category").Find(&products).Error
 	if err != nil {
-		return nil,fmt.Errorf("finding products:%w",err)
+		return nil, fmt.Errorf("finding products:%w", err)
 	}
 
-	return products,nil
+	return products, nil
 
 }
 
-func (r *repository) FindByID(ctx context.Context, id uuid.UUID) (models.Product,error) {
+func (r *repository) FindByID(ctx context.Context, id uuid.UUID) (models.Product, error) {
 
 	var product models.Product
 
 	err := r.db.WithContext(ctx).
-	Preload("Category").
-	Preload("Variants").
-	First(&product,id).Error
+		Preload("Category").
+		Preload("Variants").
+		First(&product, id).Error
 	if err != nil {
 
-		if errors.Is(err,gorm.ErrRecordNotFound) {
-			return models.Product{},ErrorProductNotFound
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return models.Product{}, ErrorProductNotFound
 		}
 
-		return models.Product{},fmt.Errorf("finding product:%w",err)
+		return models.Product{}, fmt.Errorf("finding product:%w", err)
 	}
 
-	return product,nil
+	return product, nil
 
 }
 
-func (r *repository) FindBySlug(ctx context.Context, slug string) (models.Product,error) {
+func (r *repository) FindBySlug(ctx context.Context, slug string) (models.Product, error) {
 
 	var product models.Product
 
 	err := r.db.WithContext(ctx).
-	Preload("Category").
-	Preload("Variants").
-	Where("slug = ?",slug).
-	First(&product).
-	Error
+		Preload("Category").
+		Preload("Variants").
+		Where("slug = ?", slug).
+		First(&product).
+		Error
 
 	if err != nil {
 
-		if errors.Is(err,gorm.ErrRecordNotFound) {
-			return models.Product{},ErrorProductNotFound
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return models.Product{}, ErrorProductNotFound
 		}
 
-		return models.Product{},fmt.Errorf("finding product by slug:%w",err)
+		return models.Product{}, fmt.Errorf("finding product by slug:%w", err)
 	}
 
-	return product,nil
+	return product, nil
 
 }
 
@@ -133,40 +131,40 @@ func (r *repository) ExistsBySlug(ctx context.Context, slug string) (bool, error
 	return exists, nil
 }
 
-func (r *repository) Update(ctx context.Context, id uuid.UUID, product models.Product) (models.Product,error) {
+func (r *repository) Update(ctx context.Context, id uuid.UUID, product models.Product) (models.Product, error) {
 
 	result := r.db.WithContext(ctx).
-	Model(&models.Product{}).
-	Where("id = ?",id).
-	Updates(&product)
+		Model(&models.Product{}).
+		Where("id = ?", id).
+		Updates(&product)
 
 	if result.Error != nil {
-		return models.Product{},fmt.Errorf("updating product:%w",result.Error)
+		return models.Product{}, fmt.Errorf("updating product:%w", result.Error)
 	}
 
 	if result.RowsAffected == 0 {
-		return models.Product{},ErrorProductNotFound
+		return models.Product{}, ErrorProductNotFound
 	}
 
 	var updatedProduct models.Product
 	err := r.db.WithContext(ctx).
-	Preload("Category").
-	First(&updatedProduct,id).
-	Error
+		Preload("Category").
+		First(&updatedProduct, id).
+		Error
 
 	if err != nil {
-		return models.Product{},fmt.Errorf("finding updated record:%w",err)
+		return models.Product{}, fmt.Errorf("finding updated record:%w", err)
 	}
 
-	return updatedProduct,nil
+	return updatedProduct, nil
 
 }
 
 func (r *repository) Delete(ctx context.Context, id uuid.UUID) error {
 
 	result := r.db.WithContext(ctx).
-	Delete(&models.Product{},id)
-	
+		Delete(&models.Product{}, id)
+
 	if result.Error != nil {
 		return fmt.Errorf("deleting product:%w", result.Error)
 	}

@@ -1,13 +1,10 @@
 CREATE TABLE product_variants (
     id UUID PRIMARY KEY,
     product_id UUID NOT NULL,
-
-    sku VARCHAR(100) NOT NULL UNIQUE,
+    sku VARCHAR(100) NOT NULL,
     name VARCHAR(150) NOT NULL,
-
     price NUMERIC(19,4) NOT NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
-
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
@@ -15,6 +12,9 @@ CREATE TABLE product_variants (
         FOREIGN KEY (product_id)
         REFERENCES products(id)
         ON DELETE CASCADE,
+
+    CONSTRAINT uq_product_variants_sku
+        UNIQUE (sku),
 
     CONSTRAINT chk_product_variants_price
         CHECK (price >= 0)

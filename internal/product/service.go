@@ -42,20 +42,19 @@ type Service interface {
 	) error
 }
 
-
 type service struct {
-	repo Repository
+	repo         Repository
 	categoryRepo category.Repository
 }
 
-func NewService(repo Repository,categoryRepo category.Repository) *service {
+func NewService(repo Repository, categoryRepo category.Repository) *service {
 	return &service{
-		repo:repo,
+		repo:         repo,
 		categoryRepo: categoryRepo,
 	}
 }
 
-func (s *service) Create(ctx context.Context,req CreateProductRequest) (models.Product, error) {
+func (s *service) Create(ctx context.Context, req CreateProductRequest) (models.Product, error) {
 
 	generatedSlug := slug.MakeSlug(req.Name)
 
@@ -68,17 +67,17 @@ func (s *service) Create(ctx context.Context,req CreateProductRequest) (models.P
 		return models.Product{}, ErrorProductSlugAlreadyExists
 	}
 
-	_,err = s.categoryRepo.FindByID(ctx,req.CategoryID)
+	_, err = s.categoryRepo.FindByID(ctx, req.CategoryID)
 	if err != nil {
 
-		if errors.Is(err,category.ErrorCategoryNotFound) {
-			return models.Product{},category.ErrorCategoryNotFound
+		if errors.Is(err, category.ErrorCategoryNotFound) {
+			return models.Product{}, category.ErrorCategoryNotFound
 		}
 
-		return models.Product{},err
+		return models.Product{}, err
 	}
 
-	created,err := s.repo.Create(ctx, models.Product{
+	created, err := s.repo.Create(ctx, models.Product{
 		ID:          uuid.New(),
 		Name:        req.Name,
 		Slug:        generatedSlug,
@@ -87,28 +86,28 @@ func (s *service) Create(ctx context.Context,req CreateProductRequest) (models.P
 	})
 
 	if err != nil {
-		return models.Product{},err
+		return models.Product{}, err
 	}
 
-	return created,nil
+	return created, nil
 
 }
 
-func (s *service) Update(ctx context.Context,id uuid.UUID,req UpdateProductRequest) (models.Product, error) {
+func (s *service) Update(ctx context.Context, id uuid.UUID, req UpdateProductRequest) (models.Product, error) {
 
-	current,err := s.repo.FindByID(ctx,id)
+	current, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		return models.Product{},err
+		return models.Product{}, err
 	}
 
-	_,err = s.categoryRepo.FindByID(ctx,req.CategoryID)
+	_, err = s.categoryRepo.FindByID(ctx, req.CategoryID)
 	if err != nil {
 
-		if errors.Is(err,category.ErrorCategoryNotFound) {
-			return models.Product{},category.ErrorCategoryNotFound
+		if errors.Is(err, category.ErrorCategoryNotFound) {
+			return models.Product{}, category.ErrorCategoryNotFound
 		}
 
-		return models.Product{},err
+		return models.Product{}, err
 	}
 
 	generatedSlug := slug.MakeSlug(req.Name)
@@ -125,7 +124,7 @@ func (s *service) Update(ctx context.Context,id uuid.UUID,req UpdateProductReque
 		}
 	}
 
-	updated,err := s.repo.Update(ctx,id, models.Product{
+	updated, err := s.repo.Update(ctx, id, models.Product{
 		Name:        req.Name,
 		Slug:        generatedSlug,
 		Description: req.Description,
@@ -133,10 +132,10 @@ func (s *service) Update(ctx context.Context,id uuid.UUID,req UpdateProductReque
 	})
 
 	if err != nil {
-		return models.Product{},err
+		return models.Product{}, err
 	}
 
-	return updated,nil
+	return updated, nil
 
 }
 
@@ -173,14 +172,14 @@ func (s *service) FindBySlug(ctx context.Context, slug string) (models.Product, 
 }
 
 func (s *service) Delete(
-		ctx context.Context,
-		id uuid.UUID,
-	) error {
-		err := s.repo.Delete(ctx,id)
+	ctx context.Context,
+	id uuid.UUID,
+) error {
+	err := s.repo.Delete(ctx, id)
 
-		if err != nil {
-			return  err
-		}
-
-		return  nil
+	if err != nil {
+		return err
 	}
+
+	return nil
+}

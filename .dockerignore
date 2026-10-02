@@ -9,3 +9,6 @@ Dockerfile
 docker-compose.yml
 .air.toml
 tmp
+.opencode
+.agents
+skills-lock.json
