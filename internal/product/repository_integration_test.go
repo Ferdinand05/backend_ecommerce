@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
+	"github.com/shopspring/decimal"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -87,12 +88,31 @@ func seedProduct(t *testing.T, db *gorm.DB, categoryID uuid.UUID, name, slug str
 	return product
 }
 
+func seedVariant(t *testing.T, db *gorm.DB, productID uuid.UUID, sku, name string, price decimal.Decimal) models.ProductVariant {
+	t.Helper()
+
+	variant := models.ProductVariant{
+		ID:        uuid.New(),
+		ProductID: productID,
+		SKU:       sku,
+		Name:      name,
+		Price:     price,
+	}
+
+	if err := db.Create(&variant).Error; err != nil {
+		t.Fatalf("failed to seed product variant: %v", err)
+	}
+
+	return variant
+}
+
 func TestProductRepositoryFindByID(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewRepository(db)
 
 	category := seedCategory(t, db, "electronics", "electronics")
 	seeded := seedProduct(t, db, category.ID, "laptop", "laptop")
+	seedVariant(t, db, seeded.ID, "LAP-001", "16GB", decimal.NewFromInt(15000000))
 
 	found, err := repo.FindByID(context.Background(), seeded.ID)
 	if err != nil {
@@ -101,6 +121,14 @@ func TestProductRepositoryFindByID(t *testing.T) {
 
 	if found.Slug != seeded.Slug {
 		t.Fatalf("FindByID() = %v, want %v", found, seeded)
+	}
+
+	if found.Category.ID != category.ID {
+		t.Fatalf("FindByID() category = %v, want %v", found.Category.ID, category.ID)
+	}
+
+	if len(found.Variants) != 1 || found.Variants[0].SKU != "LAP-001" {
+		t.Fatalf("FindByID() variants = %v, want 1 variant with SKU LAP-001", found.Variants)
 	}
 }
 
@@ -120,6 +148,7 @@ func TestProductRepositoryFindBySlug(t *testing.T) {
 
 	category := seedCategory(t, db, "fashion", "fashion")
 	seeded := seedProduct(t, db, category.ID, "t-shirt", "t-shirt")
+	seedVariant(t, db, seeded.ID, "TSH-M", "size M", decimal.NewFromInt(99000))
 
 	found, err := repo.FindBySlug(context.Background(), "t-shirt")
 	if err != nil {
@@ -128,6 +157,14 @@ func TestProductRepositoryFindBySlug(t *testing.T) {
 
 	if found.ID != seeded.ID {
 		t.Fatalf("FindBySlug() = %v, want %v", found, seeded)
+	}
+
+	if found.Category.ID != category.ID {
+		t.Fatalf("FindBySlug() category = %v, want %v", found.Category.ID, category.ID)
+	}
+
+	if len(found.Variants) != 1 || found.Variants[0].SKU != "TSH-M" {
+		t.Fatalf("FindBySlug() variants = %v, want 1 variant with SKU TSH-M", found.Variants)
 	}
 }
 
@@ -183,6 +220,10 @@ func TestProductRepositoryFindAll(t *testing.T) {
 	for _, p := range products {
 		if p.ID == seeded.ID {
 			found = true
+
+			if p.Category.ID != category.ID {
+				t.Fatalf("FindAll() category = %v, want %v", p.Category.ID, category.ID)
+			}
 		}
 	}
 

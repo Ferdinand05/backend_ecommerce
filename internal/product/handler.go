@@ -30,8 +30,35 @@ func toProductResponse(product models.Product) ProductResponse {
 		Slug:        product.Slug,
 		Description: product.Description,
 		IsActive:    product.IsActive,
-		CreatedAt:   product.CreatedAt,
-		UpdatedAt:   product.UpdatedAt,
+		Category: &CategoryResponse{
+			ID:   product.Category.ID,
+			Name: product.Category.Name,
+			Slug: product.Category.Slug,
+		},
+		CreatedAt: product.CreatedAt,
+		UpdatedAt: product.UpdatedAt,
+	}
+}
+
+func toProductVariantResponse(variant models.ProductVariant) ProductVariantResponse {
+	return ProductVariantResponse{
+		ID:       variant.ID,
+		SKU:      variant.SKU,
+		Name:     variant.Name,
+		Price:    variant.Price,
+		IsActive: variant.IsActive,
+	}
+}
+
+func toProductDetailResponse(product models.Product) ProductDetailResponse {
+	variants := make([]ProductVariantResponse, len(product.Variants))
+	for i, v := range product.Variants {
+		variants[i] = toProductVariantResponse(v)
+	}
+
+	return ProductDetailResponse{
+		ProductResponse: toProductResponse(product),
+		Variants:        variants,
 	}
 }
 
@@ -87,7 +114,7 @@ func (h *Handler) FindByID(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"product": toProductResponse(product),
+		"product": toProductDetailResponse(product),
 	})
 }
 
@@ -115,7 +142,7 @@ func (h *Handler) FindBySlug(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"product": toProductResponse(product),
+		"product": toProductDetailResponse(product),
 	})
 }
 

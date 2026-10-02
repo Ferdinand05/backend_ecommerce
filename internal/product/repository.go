@@ -43,7 +43,17 @@ func (r *repository) Create(ctx context.Context,product models.Product) (models.
 		return models.Product{},fmt.Errorf("creating product:%w",err)
 	}
 
-	return product,nil
+	var createdProduct models.Product
+	err = r.db.WithContext(ctx).
+	Preload("Category").
+	First(&createdProduct,product.ID).
+	Error
+
+	if err != nil {
+		return models.Product{},fmt.Errorf("finding created record:%w",err)
+	}
+
+	return createdProduct,nil
 
 }
 
@@ -51,7 +61,7 @@ func (r *repository) FindAll(ctx context.Context) ([]models.Product,error) {
 
 	var products []models.Product
 
-	err := r.db.WithContext(ctx).Find(&products).Error
+	err := r.db.WithContext(ctx).Preload("Category").Find(&products).Error
 	if err != nil {
 		return nil,fmt.Errorf("finding products:%w",err)
 	}
@@ -64,7 +74,10 @@ func (r *repository) FindByID(ctx context.Context, id uuid.UUID) (models.Product
 
 	var product models.Product
 
-	err := r.db.WithContext(ctx).First(&product,id).Error
+	err := r.db.WithContext(ctx).
+	Preload("Category").
+	Preload("Variants").
+	First(&product,id).Error
 	if err != nil {
 
 		if errors.Is(err,gorm.ErrRecordNotFound) {
@@ -82,7 +95,10 @@ func (r *repository) FindBySlug(ctx context.Context, slug string) (models.Produc
 
 	var product models.Product
 
-	err := r.db.WithContext(ctx).Where("slug = ?",slug).
+	err := r.db.WithContext(ctx).
+	Preload("Category").
+	Preload("Variants").
+	Where("slug = ?",slug).
 	First(&product).
 	Error
 

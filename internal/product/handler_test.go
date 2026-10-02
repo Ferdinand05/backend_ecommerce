@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 type fakeService struct {
@@ -58,7 +59,7 @@ func (f *fakeService) Delete(ctx context.Context, ID uuid.UUID) error {
 }
 
 type productEnvelope struct {
-	Product ProductResponse `json:"product"`
+	Product ProductDetailResponse `json:"product"`
 }
 
 type productsEnvelope struct {
@@ -96,7 +97,8 @@ func doRequest(t *testing.T, r *gin.Engine, method, path, body string) *httptest
 func TestHandlerFindAll(t *testing.T) {
 	desc := "portable computer"
 	svc := &fakeService{findAllRes: []models.Product{
-		{ID: uuid.New(), Name: "laptop", Slug: "laptop", Description: &desc, IsActive: true},
+		{ID: uuid.New(), Name: "laptop", Slug: "laptop", Description: &desc, IsActive: true,
+			Category: models.Category{Name: "electronics", Slug: "electronics"}},
 	}}
 
 	w := doRequest(t, newTestRouter(svc), http.MethodGet, "/api/v1/products", "")
@@ -117,6 +119,10 @@ func TestHandlerFindAll(t *testing.T) {
 	if got.Products[0].Slug != "laptop" {
 		t.Fatalf("slug = %q, want laptop", got.Products[0].Slug)
 	}
+
+	if got.Products[0].Category == nil || got.Products[0].Category.Slug != "electronics" {
+		t.Fatalf("category = %v, want electronics", got.Products[0].Category)
+	}
 }
 
 func TestHandlerFindAllError(t *testing.T) {
@@ -131,7 +137,15 @@ func TestHandlerFindAllError(t *testing.T) {
 
 func TestHandlerFindByID(t *testing.T) {
 	id := uuid.New()
-	svc := &fakeService{findByIDRes: models.Product{ID: id, Name: "laptop", Slug: "laptop"}}
+	svc := &fakeService{findByIDRes: models.Product{
+		ID:       id,
+		Name:     "laptop",
+		Slug:     "laptop",
+		Category: models.Category{Name: "electronics", Slug: "electronics"},
+		Variants: []models.ProductVariant{
+			{ID: uuid.New(), SKU: "LAP-001", Name: "16GB", Price: decimal.NewFromInt(15000000)},
+		},
+	}}
 
 	w := doRequest(t, newTestRouter(svc), http.MethodGet, "/api/v1/products/"+id.String(), "")
 
@@ -146,6 +160,14 @@ func TestHandlerFindByID(t *testing.T) {
 
 	if got.Product.ID != id {
 		t.Fatalf("id = %v, want %v", got.Product.ID, id)
+	}
+
+	if got.Product.Category == nil || got.Product.Category.Slug != "electronics" {
+		t.Fatalf("category = %v, want electronics", got.Product.Category)
+	}
+
+	if len(got.Product.Variants) != 1 || got.Product.Variants[0].SKU != "LAP-001" {
+		t.Fatalf("variants = %v, want 1 variant with SKU LAP-001", got.Product.Variants)
 	}
 }
 
@@ -168,7 +190,14 @@ func TestHandlerFindByIDNotFound(t *testing.T) {
 }
 
 func TestHandlerFindBySlug(t *testing.T) {
-	svc := &fakeService{findBySlugRes: models.Product{Name: "laptop", Slug: "laptop"}}
+	svc := &fakeService{findBySlugRes: models.Product{
+		Name:     "laptop",
+		Slug:     "laptop",
+		Category: models.Category{Name: "electronics", Slug: "electronics"},
+		Variants: []models.ProductVariant{
+			{ID: uuid.New(), SKU: "LAP-001", Name: "16GB", Price: decimal.NewFromInt(15000000)},
+		},
+	}}
 
 	w := doRequest(t, newTestRouter(svc), http.MethodGet, "/api/v1/products/slug/laptop", "")
 
@@ -183,6 +212,14 @@ func TestHandlerFindBySlug(t *testing.T) {
 
 	if got.Product.Slug != "laptop" {
 		t.Fatalf("slug = %q, want laptop", got.Product.Slug)
+	}
+
+	if got.Product.Category == nil || got.Product.Category.Slug != "electronics" {
+		t.Fatalf("category = %v, want electronics", got.Product.Category)
+	}
+
+	if len(got.Product.Variants) != 1 || got.Product.Variants[0].SKU != "LAP-001" {
+		t.Fatalf("variants = %v, want 1 variant with SKU LAP-001", got.Product.Variants)
 	}
 }
 

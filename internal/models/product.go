@@ -18,4 +18,6 @@ type Product struct {
 	UpdatedAt time.Time
 
 	Category Category `gorm:"foreignKey:CategoryID"`
+
+	Variants []ProductVariant `gorm:"foreignKey:ProductID"`
 }
