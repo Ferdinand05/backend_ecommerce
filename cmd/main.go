@@ -7,6 +7,7 @@ import (
 	"ferdinand/ecommerce/internal/auth"
 	"ferdinand/ecommerce/internal/category"
 	"ferdinand/ecommerce/internal/mail"
+	"ferdinand/ecommerce/internal/product"
 	"ferdinand/ecommerce/internal/role"
 	"ferdinand/ecommerce/internal/router"
 	"ferdinand/ecommerce/internal/user"
@@ -52,6 +53,10 @@ func main() {
 	categoryService := category.NewService(cateogryRepo)
 	categoryHandler := category.NewHandler(categoryService)
 
+	productRepo := product.NewRepository(db)
+	productService := product.NewService(productRepo, cateogryRepo)
+	productHandler := product.NewHandler(productService)
+
 	emailVerificationRepo := auth.NewEmailVerificationRepository(db)
 	refreshTokenRepo := auth.NewRefreshTokenRepository(db)
 	passwordResetRepo := auth.NewPasswordResetRepository(db)
@@ -74,6 +79,7 @@ func main() {
 		AuthHandler:     authHandler,
 		RoleHandler:     roleHandler,
 		CategoryHandler: categoryHandler,
+		ProductHandler:  productHandler,
 	}
 
 	r := router.New(handlers, jwtSvc)
