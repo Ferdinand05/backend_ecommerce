@@ -24,12 +24,12 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("failed to load .env.test: %v", err)
 	}
 
-	dbUser := os.Getenv("TEST_DB_USER")
-	dbPassword := os.Getenv("TEST_DB_PASSWORD")
-	dbHost := os.Getenv("TEST_DB_HOST")
-	dbPort := os.Getenv("TEST_DB_PORT")
-	dbName := os.Getenv("TEST_DB_NAME")
-	dbSSLMode := os.Getenv("TEST_DB_SSLMODE")
+	dbUser := os.Getenv("DB_USER")
+	dbPassword := os.Getenv("DB_PASSWORD")
+	dbHost := os.Getenv("DB_HOST")
+	dbPort := os.Getenv("DB_PORT")
+	dbName := os.Getenv("DB_NAME")
+	dbSSLMode := os.Getenv("DB_SSLMODE")
 
 	dsn := fmt.Sprintf(
 		"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
