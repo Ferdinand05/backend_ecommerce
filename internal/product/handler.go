@@ -89,7 +89,7 @@ func (h *Handler) FindByID(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	id, err := uuid.Parse(c.Param("id"))
+	id, err := uuid.Parse(c.Param("product_id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid product id",
@@ -190,7 +190,7 @@ func (h *Handler) Create(c *gin.Context) {
 
 func (h *Handler) Update(c *gin.Context) {
 
-	id, err := uuid.Parse(c.Param("id"))
+	id, err := uuid.Parse(c.Param("product_id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid product id",
@@ -245,7 +245,7 @@ func (h *Handler) Update(c *gin.Context) {
 }
 
 func (h *Handler) Delete(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
+	id, err := uuid.Parse(c.Param("product_id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid product id",
