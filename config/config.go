@@ -32,10 +32,19 @@ type MailConfig struct {
 	FrontendBaseURL string
 }
 
+type R2Storage struct {
+	AccountID       string
+	AccessKeyID     string
+	SecretAccessKey string
+	Bucket          string
+	PublicURL       string
+}
+
 type Config struct {
 	Database DatabaseConfig
 	JWT      JWTConfig
 	Mail     MailConfig
+	R2       R2Storage
 }
 
 func Load() (Config, error) {
@@ -108,6 +117,31 @@ func Load() (Config, error) {
 		return Config{}, errors.New("APP_PORT is required")
 	}
 
+	r2AccountID := os.Getenv("R2_ACCOUNT_ID")
+	if r2AccountID == "" {
+		return Config{}, errors.New("R2_ACCOUNT_ID is required")
+
+	}
+
+	r2AccessKeyID := os.Getenv("R2_ACCESS_KEY_ID")
+	if r2AccessKeyID == "" {
+		return Config{}, errors.New("R2_ACCESS_KEY_ID is required")
+	}
+
+	r2SecretAccessKey := os.Getenv("R2_SECRET_ACCESS_KEY")
+	if r2SecretAccessKey == "" {
+		return Config{}, errors.New("R2_SECRET_ACCESS_KEY is required")
+	}
+	r2Bucket := os.Getenv("R2_BUCKET")
+	if r2Bucket == "" {
+		return Config{}, errors.New("R2_BUCKET is required")
+	}
+
+	r2PublicURL := os.Getenv("R2_PUBLIC_URL")
+	if r2PublicURL == "" {
+		return Config{}, errors.New("R2_PUBLIC_URL is required")
+	}
+
 	dbConfig := DatabaseConfig{
 		Host:     dbHost,
 		Port:     dbPort,
@@ -131,6 +165,13 @@ func Load() (Config, error) {
 			Password:        os.Getenv("SMTP_PASSWORD"),
 			AppBaseURL:      appBaseURL,
 			FrontendBaseURL: frontendBaseURL,
+		},
+		R2: R2Storage{
+			AccountID:       r2AccountID,
+			AccessKeyID:     r2AccessKeyID,
+			SecretAccessKey: r2SecretAccessKey,
+			Bucket:          r2Bucket,
+			PublicURL:       r2PublicURL,
 		},
 	}, nil
 

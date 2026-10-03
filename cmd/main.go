@@ -8,9 +8,11 @@ import (
 	"ferdinand/ecommerce/internal/category"
 	"ferdinand/ecommerce/internal/mail"
 	"ferdinand/ecommerce/internal/product"
+	productimage "ferdinand/ecommerce/internal/product_image"
 	productvariant "ferdinand/ecommerce/internal/product_variant"
 	"ferdinand/ecommerce/internal/role"
 	"ferdinand/ecommerce/internal/router"
+	"ferdinand/ecommerce/internal/storage/cloudflare"
 	"ferdinand/ecommerce/internal/user"
 	userjwt "ferdinand/ecommerce/utils/jwt"
 	"fmt"
@@ -27,7 +29,7 @@ func main() {
 
 	db, err := database.NewPostgres(cfg.Database)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	sqlDB, err := db.DB()
@@ -62,6 +64,21 @@ func main() {
 	productVariantService := productvariant.NewService(productVariantRepo, productRepo, db)
 	productVariantHandler := productvariant.NewHandler(productVariantService)
 
+	r2Storage, err := cloudflare.NewStorage(ctx, cloudflare.Config{
+		AccountID:       cfg.R2.AccountID,
+		AccessKeyID:     cfg.R2.AccessKeyID,
+		SecretAccessKey: cfg.R2.SecretAccessKey,
+		Bucket:          cfg.R2.Bucket,
+		PublicURL:       cfg.R2.PublicURL,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	productImageRepo := productimage.NewRepository(db)
+	productImageService := productimage.NewService(productImageRepo, productRepo, productVariantRepo, r2Storage)
+	productImageHandler := productimage.NewHandler(productImageService)
+
 	emailVerificationRepo := auth.NewEmailVerificationRepository(db)
 	refreshTokenRepo := auth.NewRefreshTokenRepository(db)
 	passwordResetRepo := auth.NewPasswordResetRepository(db)
@@ -86,6 +103,7 @@ func main() {
 		CategoryHandler:       categoryHandler,
 		ProductHandler:        productHandler,
 		ProductVariantHandler: productVariantHandler,
+		ProductImageHandler:   productImageHandler,
 	}
 
 	r := router.New(handlers, jwtSvc)
