@@ -2,11 +2,11 @@ package productimage
 
 import (
 	"context"
-	"fmt"
 	"ferdinand/ecommerce/internal/models"
 	"ferdinand/ecommerce/internal/product"
 	productvariant "ferdinand/ecommerce/internal/product_variant"
 	"ferdinand/ecommerce/internal/storage"
+	"fmt"
 	"io"
 
 	"github.com/google/uuid"

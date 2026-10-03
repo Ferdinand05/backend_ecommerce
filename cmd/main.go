@@ -29,7 +29,7 @@ func main() {
 
 	db, err := database.NewPostgres(cfg.Database)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	sqlDB, err := db.DB()
@@ -64,7 +64,7 @@ func main() {
 	productVariantService := productvariant.NewService(productVariantRepo, productRepo, db)
 	productVariantHandler := productvariant.NewHandler(productVariantService)
 
-	r2Storage, err := cloudflare.NewStorage(context.Background(), cloudflare.Config{
+	r2Storage, err := cloudflare.NewStorage(ctx, cloudflare.Config{
 		AccountID:       cfg.R2.AccountID,
 		AccessKeyID:     cfg.R2.AccessKeyID,
 		SecretAccessKey: cfg.R2.SecretAccessKey,

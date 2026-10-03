@@ -85,7 +85,9 @@ type fakeVariantRepo struct {
 	findByIDErr error
 }
 
-func (f *fakeVariantRepo) Create(ctx context.Context, variant models.ProductVariant) error { return nil }
+func (f *fakeVariantRepo) Create(ctx context.Context, variant models.ProductVariant) error {
+	return nil
+}
 func (f *fakeVariantRepo) FindAllByProductID(ctx context.Context, productID uuid.UUID) ([]models.ProductVariant, error) {
 	return nil, nil
 }
@@ -104,8 +106,8 @@ func (f *fakeVariantRepo) Update(ctx context.Context, id uuid.UUID, variant mode
 func (f *fakeVariantRepo) Delete(ctx context.Context, id uuid.UUID) error { return nil }
 
 type fakeStorage struct {
-	uploadErr   error
-	deleteErr   error
+	uploadErr    error
+	deleteErr    error
 	uploadedKeys []string
 	deletedKeys  []string
 	publicURL    string
@@ -436,16 +438,16 @@ func TestServiceDelete(t *testing.T) {
 			wantRepoCall: true,
 		},
 		{
-			name:      "parent scope rejects variant image",
-			image:     models.ProductImage{ID: imageID, ProductID: productID, ProductVariantID: &variantID, StorageKey: "v.png"},
-			wantErr:   ErrorProductImageNotFound,
+			name:        "parent scope rejects variant image",
+			image:       models.ProductImage{ID: imageID, ProductID: productID, ProductVariantID: &variantID, StorageKey: "v.png"},
+			wantErr:     ErrorProductImageNotFound,
 			wantDeletes: 0,
 		},
 		{
-			name:      "storage delete error keeps row",
-			image:     models.ProductImage{ID: imageID, ProductID: productID, StorageKey: "a.png"},
-			storeErr:  storageErr,
-			wantErr:   storageErr,
+			name:        "storage delete error keeps row",
+			image:       models.ProductImage{ID: imageID, ProductID: productID, StorageKey: "a.png"},
+			storeErr:    storageErr,
+			wantErr:     storageErr,
 			wantDeletes: 1,
 		},
 		{

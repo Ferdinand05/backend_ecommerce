@@ -30,14 +30,12 @@ type Repository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 }
 
-
-
 type repository struct {
 	db *gorm.DB
 }
 
 func NewRepository(db *gorm.DB) *repository {
-	return &repository{db:db}
+	return &repository{db: db}
 }
 
 func (r *repository) Create(ctx context.Context, image models.ProductImage) error {
