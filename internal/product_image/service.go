@@ -8,6 +8,7 @@ import (
 	"ferdinand/ecommerce/internal/storage"
 	"fmt"
 	"io"
+	"log/slog"
 
 	"github.com/google/uuid"
 )
@@ -162,13 +163,24 @@ func (s *service) Upload(ctx context.Context, productID uuid.UUID, variantID *uu
 	if err := s.repo.Create(ctx, image); err != nil {
 
 		if delErr := s.storage.Delete(ctx, key); delErr != nil {
+			slog.Warn("product_image.storage_cleanup_failed", "storage_key", key, "error", delErr)
 			return ProductImageResponse{}, fmt.Errorf("creating product image:%w (storage cleanup failed: %v)", err, delErr)
 		}
 
 		return ProductImageResponse{}, err
 	}
 
+	slog.Info("product_image.uploaded", "product_id", productID, "variant_id", variantIDArg(variantID), "storage_key", key)
+
 	return toProductImageResponse(image, s.storage), nil
+}
+
+func variantIDArg(variantID *uuid.UUID) any {
+	if variantID == nil {
+		return nil
+	}
+
+	return *variantID
 }
 
 func (s *service) FindByID(ctx context.Context, productID uuid.UUID, variantID *uuid.UUID, imageID uuid.UUID) (ProductImageResponse, error) {
@@ -220,5 +232,11 @@ func (s *service) Delete(ctx context.Context, productID uuid.UUID, variantID *uu
 		return err
 	}
 
-	return s.repo.Delete(ctx, imageID)
+	if err := s.repo.Delete(ctx, imageID); err != nil {
+		return err
+	}
+
+	slog.Info("product_image.deleted", "product_id", productID, "variant_id", variantIDArg(variantID), "image_id", imageID, "storage_key", image.StorageKey)
+
+	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -62,6 +63,7 @@ func (s *Storage) Upload(ctx context.Context, key string, file io.Reader, conten
 	})
 
 	if err != nil {
+		slog.Warn("storage.r2_upload_failed", "key", key, "error", err)
 		return fmt.Errorf("uploading object %q to r2:%w", key, err)
 	}
 
@@ -76,6 +78,7 @@ func (s *Storage) Delete(ctx context.Context, key string) error {
 	})
 
 	if err != nil {
+		slog.Warn("storage.r2_delete_failed", "key", key, "error", err)
 		return fmt.Errorf("deleting object %q from r2:%w", key, err)
 	}
 
