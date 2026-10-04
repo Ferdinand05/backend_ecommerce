@@ -40,6 +40,9 @@ func NewStorage(ctx context.Context, cfg Config) (*Storage, error) {
 
 	client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
 		o.BaseEndpoint = aws.String(fmt.Sprintf("https://%s.r2.cloudflarestorage.com", cfg.AccountID))
+		o.UsePathStyle = true
+		o.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
+		o.ResponseChecksumValidation = aws.ResponseChecksumValidationWhenRequired
 	})
 
 	return &Storage{
