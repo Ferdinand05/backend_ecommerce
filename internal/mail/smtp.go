@@ -3,6 +3,7 @@ package mail
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/smtp"
 )
 
@@ -183,11 +184,16 @@ func (s *SMTPSender) sendHTML(
 		)
 	}
 
-	return smtp.SendMail(
+	if err := smtp.SendMail(
 		addr,
 		auth,
 		s.cfg.From,
 		[]string{to},
 		message,
-	)
+	); err != nil {
+		slog.Error("mail.send_failed", "error", err)
+		return err
+	}
+
+	return nil
 }

@@ -17,10 +17,14 @@ import (
 	userjwt "ferdinand/ecommerce/utils/jwt"
 	"fmt"
 	"log"
+	"log/slog"
+	"os"
 	"time"
 )
 
 func main() {
+
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, nil)))
 
 	cfg, err := config.Load()
 	if err != nil {

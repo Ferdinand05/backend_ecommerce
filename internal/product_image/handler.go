@@ -7,6 +7,7 @@ import (
 	"ferdinand/ecommerce/internal/product"
 	productvariant "ferdinand/ecommerce/internal/product_variant"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -151,6 +152,7 @@ func (h *Handler) upload(c *gin.Context, variantID *uuid.UUID) {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "internal server error",
 		})
+		slog.Error("product_image.upload_failed", "product_id", productID, "variant_id", variantID, "error", err)
 		return
 	}
 
@@ -179,6 +181,7 @@ func (h *Handler) findAll(c *gin.Context, images []ProductImageResponse, err err
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "internal server error",
 		})
+		slog.Error("product_image.list_failed", "error", err)
 		return
 	}
 
@@ -248,6 +251,7 @@ func (h *Handler) findOne(c *gin.Context, productID uuid.UUID, variantID *uuid.U
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "internal server error",
 		})
+		slog.Error("product_image.find_failed", "product_id", productID, "variant_id", variantID, "image_id", imageID, "error", err)
 		return
 	}
 
@@ -307,6 +311,7 @@ func (h *Handler) remove(c *gin.Context, productID uuid.UUID, variantID *uuid.UU
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "internal server error",
 		})
+		slog.Error("product_image.delete_failed", "product_id", productID, "variant_id", variantID, "image_id", imageID, "error", err)
 		return
 	}
 

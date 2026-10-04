@@ -3,6 +3,7 @@ package router
 import (
 	"ferdinand/ecommerce/internal/auth"
 	"ferdinand/ecommerce/internal/category"
+	"ferdinand/ecommerce/internal/middleware"
 	"ferdinand/ecommerce/internal/product"
 	"ferdinand/ecommerce/internal/product_image"
 	"ferdinand/ecommerce/internal/product_variant"
@@ -25,7 +26,8 @@ type RouteHandlers struct {
 
 func New(handlers RouteHandlers, jwtService *userJWT.JWTService) *gin.Engine {
 
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.Recovery(), middleware.RequestLogger())
 	v1 := r.Group("/api/v1")
 
 	// public
