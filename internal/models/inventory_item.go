@@ -14,6 +14,6 @@ type InventoryItem struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
-	ProductVariant ProductVariant `gorm:"foreignKey:ProductVariantID"`
+	ProductVariant ProductVariant  `gorm:"foreignKey:ProductVariantID"`
 	Movements      []StockMovement `gorm:"foreignKey:InventoryItemID"`
 }
