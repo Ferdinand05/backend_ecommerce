@@ -43,17 +43,23 @@ type Service interface {
 	) error
 }
 
-type service struct {
-	repo        Repository
-	productRepo product.Repository
-	db          *gorm.DB
+type InventoryCreator interface {
+	Create(ctx context.Context, item models.InventoryItem) error
 }
 
-func NewService(repo Repository, productRepo product.Repository, db *gorm.DB) *service {
+type service struct {
+	repo          Repository
+	productRepo   product.Repository
+	inventoryRepo InventoryCreator
+	db            *gorm.DB
+}
+
+func NewService(repo Repository, productRepo product.Repository, inventoryRepo InventoryCreator, db *gorm.DB) *service {
 	return &service{
-		repo:        repo,
-		productRepo: productRepo,
-		db:          db,
+		repo:          repo,
+		productRepo:   productRepo,
+		inventoryRepo: inventoryRepo,
+		db:            db,
 	}
 }
 
@@ -84,7 +90,16 @@ func (s *service) Create(ctx context.Context, productID uuid.UUID, req CreatePro
 
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		txCtx := database.InjectTx(ctx, tx)
-		return s.repo.Create(txCtx, variant)
+
+		if err := s.repo.Create(txCtx, variant); err != nil {
+			return err
+		}
+
+		return s.inventoryRepo.Create(txCtx, models.InventoryItem{
+			ID:               uuid.New(),
+			ProductVariantID: variant.ID,
+			Quantity:         0,
+		})
 	})
 
 	if err != nil {

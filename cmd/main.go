@@ -6,6 +6,7 @@ import (
 	"ferdinand/ecommerce/database"
 	"ferdinand/ecommerce/internal/auth"
 	"ferdinand/ecommerce/internal/category"
+	"ferdinand/ecommerce/internal/inventory"
 	"ferdinand/ecommerce/internal/mail"
 	"ferdinand/ecommerce/internal/product"
 	productimage "ferdinand/ecommerce/internal/product_image"
@@ -65,7 +66,10 @@ func main() {
 	productHandler := product.NewHandler(productService)
 
 	productVariantRepo := productvariant.NewRepository(db)
-	productVariantService := productvariant.NewService(productVariantRepo, productRepo, db)
+
+	inventoryItemRepo := inventory.NewInventoryRepository(db)
+
+	productVariantService := productvariant.NewService(productVariantRepo, productRepo, inventoryItemRepo, db)
 	productVariantHandler := productvariant.NewHandler(productVariantService)
 
 	r2Storage, err := cloudflare.NewStorage(ctx, cloudflare.Config{
@@ -82,6 +86,10 @@ func main() {
 	productImageRepo := productimage.NewRepository(db)
 	productImageService := productimage.NewService(productImageRepo, productRepo, productVariantRepo, r2Storage)
 	productImageHandler := productimage.NewHandler(productImageService)
+
+	stockMovementRepo := inventory.NewStockMovementRepository(db)
+	inventoryService := inventory.NewService(inventoryItemRepo, stockMovementRepo, productVariantRepo, db)
+	inventoryHandler := inventory.NewHandler(inventoryService)
 
 	emailVerificationRepo := auth.NewEmailVerificationRepository(db)
 	refreshTokenRepo := auth.NewRefreshTokenRepository(db)
@@ -108,6 +116,7 @@ func main() {
 		ProductHandler:        productHandler,
 		ProductVariantHandler: productVariantHandler,
 		ProductImageHandler:   productImageHandler,
+		InventoryHandler:      inventoryHandler,
 	}
 
 	r := router.New(handlers, jwtSvc)
