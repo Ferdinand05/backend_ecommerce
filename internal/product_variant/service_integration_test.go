@@ -3,6 +3,8 @@ package productvariant
 import (
 	"context"
 	"errors"
+	"ferdinand/ecommerce/database"
+	"ferdinand/ecommerce/internal/models"
 	"ferdinand/ecommerce/internal/product"
 	"testing"
 
@@ -11,10 +13,23 @@ import (
 	"gorm.io/gorm"
 )
 
+type testInventoryCreator struct {
+	db  *gorm.DB
+	err error
+}
+
+func (c *testInventoryCreator) Create(ctx context.Context, item models.InventoryItem) error {
+	if c.err != nil {
+		return c.err
+	}
+
+	return database.GetDB(ctx, c.db).WithContext(ctx).Create(&item).Error
+}
+
 func newVariantService(db *gorm.DB) *service {
 	productRepo := product.NewRepository(db)
 	variantRepo := NewRepository(db)
-	return NewService(variantRepo, productRepo, db)
+	return NewService(variantRepo, productRepo, &testInventoryCreator{db: db}, db)
 }
 
 func TestVariantServiceCreate(t *testing.T) {
@@ -46,6 +61,15 @@ func TestVariantServiceCreate(t *testing.T) {
 		t.Fatalf("FindByID() after Create = %v, want persisted variant", found)
 	}
 
+	var item models.InventoryItem
+	if err := db.Where("product_variant_id = ?", created.ID).First(&item).Error; err != nil {
+		t.Fatalf("inventory item after Create error = %v", err)
+	}
+
+	if item.Quantity != 0 {
+		t.Fatalf("inventory quantity = %d, want 0", item.Quantity)
+	}
+
 	_, err = svc.Create(context.Background(), prod.ID, CreateProductVariantRequest{
 		SKU:   "LAP-001",
 		Name:  "duplicate",
@@ -62,6 +86,38 @@ func TestVariantServiceCreate(t *testing.T) {
 	})
 	if !errors.Is(err, product.ErrorProductNotFound) {
 		t.Fatalf("Create() missing product error = %v, want %v", err, product.ErrorProductNotFound)
+	}
+}
+
+func TestVariantServiceCreateRollsBackWhenInventoryFails(t *testing.T) {
+	db := setupTestDB(t)
+
+	category := seedCategory(t, db, "electronics", "electronics")
+	prod := seedProduct(t, db, category.ID, "laptop", "laptop")
+
+	svc := NewService(
+		NewRepository(db),
+		product.NewRepository(db),
+		&testInventoryCreator{db: db, err: errors.New("inventory down")},
+		db,
+	)
+
+	_, err := svc.Create(context.Background(), prod.ID, CreateProductVariantRequest{
+		SKU:   "LAP-ROLLBACK",
+		Name:  "rollback",
+		Price: decimal.NewFromInt(1),
+	})
+	if err == nil {
+		t.Fatal("Create() error = nil, want inventory failure")
+	}
+
+	var count int64
+	if err := db.Model(&models.ProductVariant{}).Where("sku = ?", "LAP-ROLLBACK").Count(&count).Error; err != nil {
+		t.Fatalf("count variant error = %v", err)
+	}
+
+	if count != 0 {
+		t.Fatal("variant must be rolled back when inventory creation fails")
 	}
 }
 

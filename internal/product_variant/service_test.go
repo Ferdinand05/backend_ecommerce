@@ -138,7 +138,7 @@ func TestServiceCreateChecks(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewService(tt.repo, tt.product, nil)
+			svc := NewService(tt.repo, tt.product, nil, nil)
 
 			_, err := svc.Create(context.Background(), productID, CreateProductVariantRequest{
 				SKU:   "LAP-001",
@@ -180,7 +180,7 @@ func TestServiceFindAllByProductID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewService(tt.repo, &fakeProductRepo{}, nil)
+			svc := NewService(tt.repo, &fakeProductRepo{}, nil, nil)
 
 			got, err := svc.FindAllByProductID(context.Background(), productID)
 			if tt.wantErr != nil {
@@ -230,7 +230,7 @@ func TestServiceFindByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewService(tt.repo, &fakeProductRepo{}, nil)
+			svc := NewService(tt.repo, &fakeProductRepo{}, nil, nil)
 
 			got, err := svc.FindByID(context.Background(), productID, id)
 			if tt.wantErr != nil {
@@ -281,7 +281,7 @@ func TestServiceUpdateChecks(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewService(tt.repo, &fakeProductRepo{}, nil)
+			svc := NewService(tt.repo, &fakeProductRepo{}, nil, nil)
 
 			_, err := svc.Update(context.Background(), productID, id, UpdateProductVariantRequest{
 				SKU:   "LAP-002",
@@ -322,7 +322,7 @@ func TestServiceDeleteChecks(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewService(tt.repo, &fakeProductRepo{}, nil)
+			svc := NewService(tt.repo, &fakeProductRepo{}, nil, nil)
 
 			err := svc.Delete(context.Background(), productID, id)
 			if !errors.Is(err, tt.wantErr) {
