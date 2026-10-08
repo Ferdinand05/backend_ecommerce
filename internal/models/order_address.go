@@ -27,5 +27,4 @@ type OrderAddress struct {
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
-
 }

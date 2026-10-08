@@ -23,6 +23,6 @@ type Order struct {
 
 	User            User                 `gorm:"foreignKey:UserID"`
 	Items           []OrderItem          `gorm:"foreignKey:OrderID"`
-	Address         *OrderAddress         `gorm:"foreignKey:OrderID"`
+	Address         *OrderAddress        `gorm:"foreignKey:OrderID"`
 	StatusHistories []OrderStatusHistory `gorm:"foreignKey:OrderID"`
 }
