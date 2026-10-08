@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"ferdinand/ecommerce/internal/middleware"
 	"ferdinand/ecommerce/internal/product_variant"
 	"net/http"
 	"net/http/httptest"
@@ -66,7 +67,9 @@ const testSecret = "test-secret"
 func newCartRouter(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	RegisterRoutes(r.Group("/api/v1"), NewHandler(svc), userjwt.NewJWTService(testSecret))
+	jwt := userjwt.NewJWTService(testSecret)
+	cart := r.Group("/api/v1/cart", middleware.AuthMiddleware(jwt))
+	RegisterRoutes(cart, NewHandler(svc))
 	return r
 }
 

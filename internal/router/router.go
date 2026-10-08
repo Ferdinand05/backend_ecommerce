@@ -45,7 +45,8 @@ func New(handlers RouteHandlers, jwtService *userJWT.JWTService) *gin.Engine {
 	productvariant.RegisterRoutes(v1, handlers.ProductVariantHandler)
 	productimage.RegisterRoutes(v1, handlers.ProductImageHandler)
 	inventory.RegisterRoutes(v1, handlers.InventoryHandler)
-	cartitems.RegisterRoutes(v1, handlers.CartHandler, jwtService)
+	cart := v1.Group("/cart", middleware.AuthMiddleware(jwtService))
+	cartitems.RegisterRoutes(cart, handlers.CartHandler)
 
 	// authenticated
 	me := v1.Group("/me", middleware.AuthMiddleware(jwtService))
