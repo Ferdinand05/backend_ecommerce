@@ -9,6 +9,7 @@ import (
 	"ferdinand/ecommerce/internal/category"
 	"ferdinand/ecommerce/internal/inventory"
 	"ferdinand/ecommerce/internal/mail"
+	"ferdinand/ecommerce/internal/order"
 	"ferdinand/ecommerce/internal/product"
 	productimage "ferdinand/ecommerce/internal/product_image"
 	productvariant "ferdinand/ecommerce/internal/product_variant"
@@ -96,6 +97,10 @@ func main() {
 	cartService := cartitems.NewService(cartRepo, productVariantRepo)
 	cartHandler := cartitems.NewHandler(cartService)
 
+	orderRepo := order.NewRepository(db)
+	orderService := order.NewService(orderRepo, db)
+	orderHandler := order.NewHandler(orderService)
+
 	emailVerificationRepo := auth.NewEmailVerificationRepository(db)
 	refreshTokenRepo := auth.NewRefreshTokenRepository(db)
 	passwordResetRepo := auth.NewPasswordResetRepository(db)
@@ -123,6 +128,7 @@ func main() {
 		ProductImageHandler:   productImageHandler,
 		InventoryHandler:      inventoryHandler,
 		CartHandler:           cartHandler,
+		OrderHandler:          orderHandler,
 	}
 
 	r := router.New(handlers, jwtSvc)
