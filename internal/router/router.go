@@ -2,13 +2,14 @@ package router
 
 import (
 	"ferdinand/ecommerce/internal/auth"
-	"ferdinand/ecommerce/internal/cart_items"
+	cartitems "ferdinand/ecommerce/internal/cart_items"
 	"ferdinand/ecommerce/internal/category"
 	"ferdinand/ecommerce/internal/inventory"
 	"ferdinand/ecommerce/internal/middleware"
+	"ferdinand/ecommerce/internal/order"
 	"ferdinand/ecommerce/internal/product"
-	"ferdinand/ecommerce/internal/product_image"
-	"ferdinand/ecommerce/internal/product_variant"
+	productimage "ferdinand/ecommerce/internal/product_image"
+	productvariant "ferdinand/ecommerce/internal/product_variant"
 	"ferdinand/ecommerce/internal/role"
 	"ferdinand/ecommerce/internal/user"
 	userJWT "ferdinand/ecommerce/utils/jwt"
@@ -26,6 +27,7 @@ type RouteHandlers struct {
 	ProductImageHandler   *productimage.Handler
 	InventoryHandler      *inventory.Handler
 	CartHandler           *cartitems.Handler
+	OrderHandler          *order.Handler
 }
 
 func New(handlers RouteHandlers, jwtService *userJWT.JWTService) *gin.Engine {
@@ -43,6 +45,13 @@ func New(handlers RouteHandlers, jwtService *userJWT.JWTService) *gin.Engine {
 	productvariant.RegisterRoutes(v1, handlers.ProductVariantHandler)
 	productimage.RegisterRoutes(v1, handlers.ProductImageHandler)
 	inventory.RegisterRoutes(v1, handlers.InventoryHandler)
-	cartitems.RegisterRoutes(v1, handlers.CartHandler, jwtService)
+
+	// authenticated
+	cart := v1.Group("/cart", middleware.AuthMiddleware(jwtService))
+	cartitems.RegisterRoutes(cart, handlers.CartHandler)
+	me := v1.Group("/me", middleware.AuthMiddleware(jwtService))
+	admin := v1.Group("/admin", middleware.AuthMiddleware(jwtService), middleware.RequireRole("admin"))
+	order.RegisterRoutes(me, admin, handlers.OrderHandler)
+
 	return r
 }
