@@ -65,6 +65,12 @@ func NewService(repo Repository, productRepo product.Repository, inventoryRepo I
 
 func (s *service) Create(ctx context.Context, productID uuid.UUID, req CreateProductVariantRequest) (models.ProductVariant, error) {
 
+	// varian yang bisa dijual wajib punya berat valid agar checkout
+	// bisa menghitung ongkir (Biteship).
+	if req.WeightGrams < 1 || req.WeightGrams > 100000 {
+		return models.ProductVariant{}, ErrorInvalidWeightGrams
+	}
+
 	_, err := s.productRepo.FindByID(ctx, productID)
 	if err != nil {
 		return models.ProductVariant{}, err
@@ -80,12 +86,13 @@ func (s *service) Create(ctx context.Context, productID uuid.UUID, req CreatePro
 	}
 
 	variant := models.ProductVariant{
-		ID:        uuid.New(),
-		ProductID: productID,
-		SKU:       req.SKU,
-		Name:      req.Name,
-		Price:     req.Price,
-		IsActive:  true,
+		ID:          uuid.New(),
+		ProductID:   productID,
+		SKU:         req.SKU,
+		Name:        req.Name,
+		Price:       req.Price,
+		IsActive:    true,
+		WeightGrams: req.WeightGrams,
 	}
 
 	err = s.db.Transaction(func(tx *gorm.DB) error {
@@ -135,6 +142,10 @@ func (s *service) FindByID(ctx context.Context, productID uuid.UUID, id uuid.UUI
 
 func (s *service) Update(ctx context.Context, productID uuid.UUID, id uuid.UUID, req UpdateProductVariantRequest) (models.ProductVariant, error) {
 
+	if req.WeightGrams < 1 || req.WeightGrams > 100000 {
+		return models.ProductVariant{}, ErrorInvalidWeightGrams
+	}
+
 	current, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return models.ProductVariant{}, err
@@ -156,9 +167,10 @@ func (s *service) Update(ctx context.Context, productID uuid.UUID, id uuid.UUID,
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		txCtx := database.InjectTx(ctx, tx)
 		return s.repo.Update(txCtx, id, models.ProductVariant{
-			SKU:   req.SKU,
-			Name:  req.Name,
-			Price: req.Price,
+			SKU:         req.SKU,
+			Name:        req.Name,
+			Price:       req.Price,
+			WeightGrams: req.WeightGrams,
 		})
 	})
 
@@ -167,14 +179,15 @@ func (s *service) Update(ctx context.Context, productID uuid.UUID, id uuid.UUID,
 	}
 
 	return models.ProductVariant{
-		ID:        current.ID,
-		ProductID: current.ProductID,
-		SKU:       req.SKU,
-		Name:      req.Name,
-		Price:     req.Price,
-		IsActive:  current.IsActive,
-		CreatedAt: current.CreatedAt,
-		UpdatedAt: current.UpdatedAt,
+		ID:          current.ID,
+		ProductID:   current.ProductID,
+		SKU:         req.SKU,
+		Name:        req.Name,
+		Price:       req.Price,
+		IsActive:    current.IsActive,
+		WeightGrams: req.WeightGrams,
+		CreatedAt:   current.CreatedAt,
+		UpdatedAt:   current.UpdatedAt,
 	}, nil
 }
 

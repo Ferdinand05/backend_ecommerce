@@ -30,6 +30,8 @@ type OrderItemResponse struct {
 	Price    decimal.Decimal `json:"price"`
 	Quantity int             `json:"quantity"`
 	Subtotal decimal.Decimal `json:"subtotal"`
+
+	WeightGrams int `json:"weight_grams"`
 }
 
 type OrderAddressResponse struct {

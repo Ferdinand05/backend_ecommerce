@@ -5,4 +5,5 @@ import "errors"
 var (
 	ErrorProductVariantNotFound  = errors.New("product variant not found")
 	ErrorVariantSKUAlreadyExists = errors.New("variant sku already exists")
+	ErrorInvalidWeightGrams      = errors.New("invalid weight_grams")
 )

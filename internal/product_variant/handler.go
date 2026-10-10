@@ -24,12 +24,13 @@ func NewHandler(service Service) *Handler {
 
 func toProductVariantResponse(variant models.ProductVariant) ProductVariantResponse {
 	return ProductVariantResponse{
-		ID:        variant.ID,
-		ProductID: variant.ProductID,
-		SKU:       variant.SKU,
-		Name:      variant.Name,
-		Price:     variant.Price,
-		IsActive:  variant.IsActive,
+		ID:          variant.ID,
+		ProductID:   variant.ProductID,
+		SKU:         variant.SKU,
+		Name:        variant.Name,
+		Price:       variant.Price,
+		IsActive:    variant.IsActive,
+		WeightGrams: variant.WeightGrams,
 	}
 }
 
@@ -137,6 +138,13 @@ func (h *Handler) Create(c *gin.Context) {
 	variant, err := h.service.Create(ctx, productID, req)
 	if err != nil {
 
+		if errors.Is(err, ErrorInvalidWeightGrams) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid weight_grams, must be between 1 and 100000",
+			})
+			return
+		}
+
 		if errors.Is(err, ErrorVariantSKUAlreadyExists) {
 			c.JSON(http.StatusConflict, gin.H{
 				"error": "variant sku already exists",
@@ -190,6 +198,13 @@ func (h *Handler) Update(c *gin.Context) {
 
 	variant, err := h.service.Update(ctx, productID, variantID, req)
 	if err != nil {
+
+		if errors.Is(err, ErrorInvalidWeightGrams) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid weight_grams, must be between 1 and 100000",
+			})
+			return
+		}
 
 		if errors.Is(err, ErrorProductVariantNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
