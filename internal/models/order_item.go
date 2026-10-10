@@ -17,6 +17,9 @@ type OrderItem struct {
 	VariantName string `gorm:"type:varchar(150);not null"`
 	SKU         string `gorm:"type:varchar(100);not null"`
 
+	// snapshot berat varian (gram) saat checkout, untuk manifest Biteship.
+	WeightGrams int `gorm:"not null;default:0"`
+
 	Price    decimal.Decimal `gorm:"type:numeric(19,4);not null"`
 	Quantity int             `gorm:"not null"`
 	Subtotal decimal.Decimal `gorm:"type:numeric(19,4);not null"`
