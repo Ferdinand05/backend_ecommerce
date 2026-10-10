@@ -180,7 +180,7 @@ func TestHandlerCreate(t *testing.T) {
 	}}
 
 	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/products/"+productID.String()+"/variants",
-		`{"sku":"LAP-001","name":"16GB","price":15000000}`)
+		`{"sku":"LAP-001","name":"16GB","price":15000000,"weight_grams":1500}`)
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusCreated)
@@ -206,7 +206,7 @@ func TestHandlerCreateInvalidBody(t *testing.T) {
 
 func TestHandlerCreateInvalidProductID(t *testing.T) {
 	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPost, "/api/v1/products/not-a-uuid/variants",
-		`{"sku":"LAP-001","name":"16GB","price":15000000}`)
+		`{"sku":"LAP-001","name":"16GB","price":15000000,"weight_grams":1500}`)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
@@ -217,7 +217,7 @@ func TestHandlerCreateSKUConflict(t *testing.T) {
 	svc := &fakeService{createErr: ErrorVariantSKUAlreadyExists}
 
 	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/products/"+uuid.New().String()+"/variants",
-		`{"sku":"LAP-001","name":"16GB","price":15000000}`)
+		`{"sku":"LAP-001","name":"16GB","price":15000000,"weight_grams":1500}`)
 
 	if w.Code != http.StatusConflict {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusConflict)
@@ -228,7 +228,7 @@ func TestHandlerCreateProductNotFound(t *testing.T) {
 	svc := &fakeService{createErr: product.ErrorProductNotFound}
 
 	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/products/"+uuid.New().String()+"/variants",
-		`{"sku":"LAP-001","name":"16GB","price":15000000}`)
+		`{"sku":"LAP-001","name":"16GB","price":15000000,"weight_grams":1500}`)
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusNotFound)
@@ -239,10 +239,53 @@ func TestHandlerCreateError(t *testing.T) {
 	svc := &fakeService{createErr: errors.New("boom")}
 
 	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/products/"+uuid.New().String()+"/variants",
-		`{"sku":"LAP-001","name":"16GB","price":15000000}`)
+		`{"sku":"LAP-001","name":"16GB","price":15000000,"weight_grams":1500}`)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandlerCreateInvalidWeight(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "missing weight", body: `{"sku":"LAP-001","name":"16GB","price":15000000}`},
+		{name: "zero weight", body: `{"sku":"LAP-001","name":"16GB","price":15000000,"weight_grams":0}`},
+		{name: "over max weight", body: `{"sku":"LAP-001","name":"16GB","price":15000000,"weight_grams":100001}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPost, "/api/v1/products/"+uuid.New().String()+"/variants", tt.body)
+
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
+			}
+		})
+	}
+}
+
+func TestHandlerCreateInvalidWeightError(t *testing.T) {
+	svc := &fakeService{createErr: ErrorInvalidWeightGrams}
+
+	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/products/"+uuid.New().String()+"/variants",
+		`{"sku":"LAP-001","name":"16GB","price":15000000,"weight_grams":1500}`)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandlerUpdateInvalidWeightError(t *testing.T) {
+	svc := &fakeService{updateErr: ErrorInvalidWeightGrams}
+
+	w := doRequest(t, newTestRouter(svc), http.MethodPut, "/api/v1/products/"+uuid.New().String()+"/variants/"+uuid.New().String(),
+		`{"sku":"LAP-002","name":"32GB","price":20000000,"weight_grams":2000}`)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
 	}
 }
 
@@ -252,7 +295,7 @@ func TestHandlerUpdate(t *testing.T) {
 	svc := &fakeService{updateRes: models.ProductVariant{ID: id, ProductID: productID, SKU: "LAP-002"}}
 
 	w := doRequest(t, newTestRouter(svc), http.MethodPut, "/api/v1/products/"+productID.String()+"/variants/"+id.String(),
-		`{"sku":"LAP-002","name":"32GB","price":20000000}`)
+		`{"sku":"LAP-002","name":"32GB","price":20000000,"weight_grams":2000}`)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
@@ -270,7 +313,7 @@ func TestHandlerUpdate(t *testing.T) {
 
 func TestHandlerUpdateInvalidVariantID(t *testing.T) {
 	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPut, "/api/v1/products/"+uuid.New().String()+"/variants/not-a-uuid",
-		`{"sku":"LAP-002","name":"32GB","price":20000000}`)
+		`{"sku":"LAP-002","name":"32GB","price":20000000,"weight_grams":2000}`)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
@@ -289,7 +332,7 @@ func TestHandlerUpdateNotFound(t *testing.T) {
 	svc := &fakeService{updateErr: ErrorProductVariantNotFound}
 
 	w := doRequest(t, newTestRouter(svc), http.MethodPut, "/api/v1/products/"+uuid.New().String()+"/variants/"+uuid.New().String(),
-		`{"sku":"LAP-002","name":"32GB","price":20000000}`)
+		`{"sku":"LAP-002","name":"32GB","price":20000000,"weight_grams":2000}`)
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusNotFound)
@@ -300,7 +343,7 @@ func TestHandlerUpdateSKUConflict(t *testing.T) {
 	svc := &fakeService{updateErr: ErrorVariantSKUAlreadyExists}
 
 	w := doRequest(t, newTestRouter(svc), http.MethodPut, "/api/v1/products/"+uuid.New().String()+"/variants/"+uuid.New().String(),
-		`{"sku":"LAP-002","name":"32GB","price":20000000}`)
+		`{"sku":"LAP-002","name":"32GB","price":20000000,"weight_grams":2000}`)
 
 	if w.Code != http.StatusConflict {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusConflict)

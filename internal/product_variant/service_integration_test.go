@@ -40,9 +40,10 @@ func TestVariantServiceCreate(t *testing.T) {
 	prod := seedProduct(t, db, category.ID, "laptop", "laptop")
 
 	created, err := svc.Create(context.Background(), prod.ID, CreateProductVariantRequest{
-		SKU:   "LAP-001",
-		Name:  "16GB",
-		Price: decimal.NewFromInt(15000000),
+		SKU:         "LAP-001",
+		Name:        "16GB",
+		Price:       decimal.NewFromInt(15000000),
+		WeightGrams: 1500,
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -71,18 +72,20 @@ func TestVariantServiceCreate(t *testing.T) {
 	}
 
 	_, err = svc.Create(context.Background(), prod.ID, CreateProductVariantRequest{
-		SKU:   "LAP-001",
-		Name:  "duplicate",
-		Price: decimal.NewFromInt(1),
+		SKU:         "LAP-001",
+		Name:        "duplicate",
+		Price:       decimal.NewFromInt(1),
+		WeightGrams: 1500,
 	})
 	if !errors.Is(err, ErrorVariantSKUAlreadyExists) {
 		t.Fatalf("Create() duplicate sku error = %v, want %v", err, ErrorVariantSKUAlreadyExists)
 	}
 
 	_, err = svc.Create(context.Background(), uuid.New(), CreateProductVariantRequest{
-		SKU:   "LAP-00X",
-		Name:  "orphan",
-		Price: decimal.NewFromInt(1),
+		SKU:         "LAP-00X",
+		Name:        "orphan",
+		Price:       decimal.NewFromInt(1),
+		WeightGrams: 1500,
 	})
 	if !errors.Is(err, product.ErrorProductNotFound) {
 		t.Fatalf("Create() missing product error = %v, want %v", err, product.ErrorProductNotFound)
@@ -103,9 +106,10 @@ func TestVariantServiceCreateRollsBackWhenInventoryFails(t *testing.T) {
 	)
 
 	_, err := svc.Create(context.Background(), prod.ID, CreateProductVariantRequest{
-		SKU:   "LAP-ROLLBACK",
-		Name:  "rollback",
-		Price: decimal.NewFromInt(1),
+		SKU:         "LAP-ROLLBACK",
+		Name:        "rollback",
+		Price:       decimal.NewFromInt(1),
+		WeightGrams: 1500,
 	})
 	if err == nil {
 		t.Fatal("Create() error = nil, want inventory failure")
@@ -130,9 +134,10 @@ func TestVariantServiceFindAllByProductID(t *testing.T) {
 
 	for _, sku := range []string{"LAP-001", "LAP-002"} {
 		if _, err := svc.Create(context.Background(), prod.ID, CreateProductVariantRequest{
-			SKU:   sku,
-			Name:  sku,
-			Price: decimal.NewFromInt(1000000),
+			SKU:         sku,
+			Name:        sku,
+			Price:       decimal.NewFromInt(1000000),
+			WeightGrams: 1500,
 		}); err != nil {
 			t.Fatalf("Create() %s error = %v", sku, err)
 		}
@@ -160,18 +165,20 @@ func TestVariantServiceUpdate(t *testing.T) {
 	prod := seedProduct(t, db, category.ID, "laptop", "laptop")
 
 	created, err := svc.Create(context.Background(), prod.ID, CreateProductVariantRequest{
-		SKU:   "LAP-001",
-		Name:  "16GB",
-		Price: decimal.NewFromInt(15000000),
+		SKU:         "LAP-001",
+		Name:        "16GB",
+		Price:       decimal.NewFromInt(15000000),
+		WeightGrams: 1500,
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 
 	updated, err := svc.Update(context.Background(), prod.ID, created.ID, UpdateProductVariantRequest{
-		SKU:   "LAP-001",
-		Name:  "16GB Pro",
-		Price: decimal.NewFromInt(16000000),
+		SKU:         "LAP-001",
+		Name:        "16GB Pro",
+		Price:       decimal.NewFromInt(16000000),
+		WeightGrams: 1500,
 	})
 	if err != nil {
 		t.Fatalf("Update() with own sku error = %v", err)
@@ -191,26 +198,29 @@ func TestVariantServiceUpdate(t *testing.T) {
 	}
 
 	if _, err := svc.Create(context.Background(), prod.ID, CreateProductVariantRequest{
-		SKU:   "LAP-002",
-		Name:  "32GB",
-		Price: decimal.NewFromInt(20000000),
+		SKU:         "LAP-002",
+		Name:        "32GB",
+		Price:       decimal.NewFromInt(20000000),
+		WeightGrams: 1500,
 	}); err != nil {
 		t.Fatalf("Create() LAP-002 error = %v", err)
 	}
 
 	_, err = svc.Update(context.Background(), prod.ID, created.ID, UpdateProductVariantRequest{
-		SKU:   "LAP-002",
-		Name:  "conflict",
-		Price: decimal.NewFromInt(1),
+		SKU:         "LAP-002",
+		Name:        "conflict",
+		Price:       decimal.NewFromInt(1),
+		WeightGrams: 1500,
 	})
 	if !errors.Is(err, ErrorVariantSKUAlreadyExists) {
 		t.Fatalf("Update() conflicting sku error = %v, want %v", err, ErrorVariantSKUAlreadyExists)
 	}
 
 	_, err = svc.Update(context.Background(), uuid.New(), created.ID, UpdateProductVariantRequest{
-		SKU:   "LAP-001",
-		Name:  "stolen",
-		Price: decimal.NewFromInt(1),
+		SKU:         "LAP-001",
+		Name:        "stolen",
+		Price:       decimal.NewFromInt(1),
+		WeightGrams: 1500,
 	})
 	if !errors.Is(err, ErrorProductVariantNotFound) {
 		t.Fatalf("Update() other product error = %v, want %v", err, ErrorProductVariantNotFound)
@@ -225,9 +235,10 @@ func TestVariantServiceDelete(t *testing.T) {
 	prod := seedProduct(t, db, category.ID, "laptop", "laptop")
 
 	created, err := svc.Create(context.Background(), prod.ID, CreateProductVariantRequest{
-		SKU:   "LAP-DEL",
-		Name:  "to delete",
-		Price: decimal.NewFromInt(1000),
+		SKU:         "LAP-DEL",
+		Name:        "to delete",
+		Price:       decimal.NewFromInt(1000),
+		WeightGrams: 1500,
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
