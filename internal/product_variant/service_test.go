@@ -141,9 +141,10 @@ func TestServiceCreateChecks(t *testing.T) {
 			svc := NewService(tt.repo, tt.product, nil, nil)
 
 			_, err := svc.Create(context.Background(), productID, CreateProductVariantRequest{
-				SKU:   "LAP-001",
-				Name:  "16GB",
-				Price: decimal.NewFromInt(15000000),
+				SKU:         "LAP-001",
+				Name:        "16GB",
+				Price:       decimal.NewFromInt(15000000),
+				WeightGrams: 1500,
 			})
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("Create() error = %v, want %v", err, tt.wantErr)
@@ -153,6 +154,22 @@ func TestServiceCreateChecks(t *testing.T) {
 				t.Fatal("Create() must not reach repository on validation failure")
 			}
 		})
+	}
+}
+
+func TestServiceCreateInvalidWeight(t *testing.T) {
+	svc := NewService(&fakeRepo{}, &fakeProductRepo{}, nil, nil)
+
+	for _, weight := range []int{0, -100, 100001} {
+		_, err := svc.Create(context.Background(), uuid.New(), CreateProductVariantRequest{
+			SKU:         "LAP-001",
+			Name:        "16GB",
+			Price:       decimal.NewFromInt(15000000),
+			WeightGrams: weight,
+		})
+		if !errors.Is(err, ErrorInvalidWeightGrams) {
+			t.Fatalf("Create() weight %d error = %v, want ErrorInvalidWeightGrams", weight, err)
+		}
 	}
 }
 
@@ -284,9 +301,10 @@ func TestServiceUpdateChecks(t *testing.T) {
 			svc := NewService(tt.repo, &fakeProductRepo{}, nil, nil)
 
 			_, err := svc.Update(context.Background(), productID, id, UpdateProductVariantRequest{
-				SKU:   "LAP-002",
-				Name:  "32GB",
-				Price: decimal.NewFromInt(20000000),
+				SKU:         "LAP-002",
+				Name:        "32GB",
+				Price:       decimal.NewFromInt(20000000),
+				WeightGrams: 2000,
 			})
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("Update() error = %v, want %v", err, tt.wantErr)
@@ -296,6 +314,20 @@ func TestServiceUpdateChecks(t *testing.T) {
 				t.Fatal("Update() must not reach repository on validation failure")
 			}
 		})
+	}
+}
+
+func TestServiceUpdateInvalidWeight(t *testing.T) {
+	svc := NewService(&fakeRepo{}, &fakeProductRepo{}, nil, nil)
+
+	_, err := svc.Update(context.Background(), uuid.New(), uuid.New(), UpdateProductVariantRequest{
+		SKU:         "LAP-002",
+		Name:        "32GB",
+		Price:       decimal.NewFromInt(20000000),
+		WeightGrams: 0,
+	})
+	if !errors.Is(err, ErrorInvalidWeightGrams) {
+		t.Fatalf("Update() error = %v, want ErrorInvalidWeightGrams", err)
 	}
 }
 

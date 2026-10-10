@@ -15,6 +15,9 @@ type ProductVariant struct {
 	Price     decimal.Decimal `gorm:"type:numeric(19,4);not null"`
 	IsActive  bool            `gorm:"not null;default:true"`
 
+	// berat dalam gram, dipakai integrasi Biteship. 0 = belum diset.
+	WeightGrams int `gorm:"not null;default:0"`
+
 	CreatedAt time.Time
 	UpdatedAt time.Time
 

@@ -50,7 +50,7 @@ func New(handlers RouteHandlers, jwtService *userJWT.JWTService) *gin.Engine {
 	cart := v1.Group("/cart", middleware.AuthMiddleware(jwtService))
 	cartitems.RegisterRoutes(cart, handlers.CartHandler)
 	me := v1.Group("/me", middleware.AuthMiddleware(jwtService))
-	admin := v1.Group("/admin", middleware.AuthMiddleware(jwtService), middleware.RequireRole("admin"))
+	admin := v1.Group("/admin", middleware.AuthMiddleware(jwtService), middleware.RequireRole("admin")) // admin
 	order.RegisterRoutes(me, admin, handlers.OrderHandler)
 
 	return r

@@ -408,6 +408,7 @@ func toOrderDetailResponse(order models.Order) OrderDetailResponse {
 			Price:            item.Price,
 			Quantity:         item.Quantity,
 			Subtotal:         item.Subtotal,
+			WeightGrams:      item.WeightGrams,
 		}
 	}
 
