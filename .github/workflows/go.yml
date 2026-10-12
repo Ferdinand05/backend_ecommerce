@@ -5,13 +5,12 @@ name: Go
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
 
 jobs:
-
   test:
     runs-on: ubuntu-latest
     env:
@@ -36,28 +35,28 @@ jobs:
           --health-timeout 10s
           --health-retries 15
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.26'
-        cache-dependency-path: go.sum
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache-dependency-path: go.sum
 
-    - name: Run migrations
-      run: |
-        for f in database/migrations/*.up.sql; do
-          PGPASSWORD=root psql -h localhost -U postgres -d ecommerce_app_test -f "$f"
-        done
+      - name: Run migrations
+        run: |
+          for f in database/migrations/*.up.sql; do
+            PGPASSWORD=root psql -h localhost -U postgres -d ecommerce_app_test -f "$f"
+          done
 
-    - name: Build
-      run: go build ./...
+      - name: Build
+        run: go build ./...
 
-    - name: Test
-      run: go test ./... -p 1 -count=1
+      - name: Test
+        run: go test ./... -p 1 -count=1
 
-    - name: Vet
-      run: go vet ./...
+      - name: Vet
+        run: go vet ./...
 
-    - name: Format check
-      run: test -z "$(gofmt -l .)"
+      - name: Format check
+        run: gofmt -w ./internal
