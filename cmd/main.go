@@ -4,8 +4,9 @@ import (
 	"context"
 	"ferdinand/ecommerce/config"
 	"ferdinand/ecommerce/database"
+	"ferdinand/ecommerce/database/redis"
 	"ferdinand/ecommerce/internal/auth"
-	"ferdinand/ecommerce/internal/cart_items"
+	cartitems "ferdinand/ecommerce/internal/cart_items"
 	"ferdinand/ecommerce/internal/category"
 	"ferdinand/ecommerce/internal/inventory"
 	"ferdinand/ecommerce/internal/mail"
@@ -15,6 +16,8 @@ import (
 	productvariant "ferdinand/ecommerce/internal/product_variant"
 	"ferdinand/ecommerce/internal/role"
 	"ferdinand/ecommerce/internal/router"
+	"ferdinand/ecommerce/internal/shipping"
+	"ferdinand/ecommerce/internal/shipping/biteship"
 	"ferdinand/ecommerce/internal/storage/cloudflare"
 	"ferdinand/ecommerce/internal/user"
 	userjwt "ferdinand/ecommerce/utils/jwt"
@@ -22,6 +25,7 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -49,7 +53,18 @@ func main() {
 
 	defer sqlDB.Close()
 
+	//jwt
 	jwtSvc := userjwt.NewJWTService(cfg.JWT.SecretKey)
+	//redis
+	redisClientService := redis.NewRedisClient(cfg.Redis)
+
+	_,err = redisClientService.Ping(ctx).Result()
+	if err != nil {
+		log.Fatalf("failed to connect to redis: %v", err)
+	}
+	fmt.Println("Connected to redis!")
+
+	redisClientCache := redis.NewCache(redisClientService)
 
 	userRepo := user.NewRepository(db)
 	userSvc := user.NewService(userRepo)
@@ -59,12 +74,12 @@ func main() {
 	roleSvc := role.NewService(roleRepo)
 	roleHandler := role.NewHandler(roleSvc)
 
-	cateogryRepo := category.NewRepository(db)
-	categoryService := category.NewService(cateogryRepo)
+	categoryRepo := category.NewRepository(db)
+	categoryService := category.NewService(categoryRepo, redisClientCache)
 	categoryHandler := category.NewHandler(categoryService)
 
 	productRepo := product.NewRepository(db)
-	productService := product.NewService(productRepo, cateogryRepo)
+	productService := product.NewService(productRepo, categoryRepo,redisClientCache)
 	productHandler := product.NewHandler(productService)
 
 	productVariantRepo := productvariant.NewRepository(db)
@@ -118,6 +133,17 @@ func main() {
 	)
 	authHandler := auth.NewHandler(authSvc)
 
+	// Biteship client
+	timeout,_ := strconv.Atoi(cfg.Biteship.Timeout)
+	timeoutInSecond := time.Duration(timeout) * time.Second
+	biteshipClient := biteship.NewClient(cfg.Biteship.BaseURL,cfg.Biteship.ApiKey,timeoutInSecond)
+
+	// Biteship provider
+	biteshipProvider := biteship.NewProvider(biteshipClient)
+	
+	shippingService := shipping.NewService(redisClientCache,biteshipProvider)
+	shippingHandler := shipping.NewHandler(shippingService)
+
 	handlers := router.RouteHandlers{
 		UserHandler:           userHandler,
 		AuthHandler:           authHandler,
@@ -129,6 +155,7 @@ func main() {
 		InventoryHandler:      inventoryHandler,
 		CartHandler:           cartHandler,
 		OrderHandler:          orderHandler,
+		ShippingHandler:shippingHandler ,
 	}
 
 	r := router.New(handlers, jwtSvc)
