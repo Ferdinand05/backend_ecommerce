@@ -2,12 +2,26 @@ package product
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
+	"time"
+
+	redisClient "ferdinand/ecommerce/database/redis"
 	"ferdinand/ecommerce/internal/category"
 	"ferdinand/ecommerce/internal/models"
 	"ferdinand/ecommerce/utils/slug"
 
 	"github.com/google/uuid"
+)
+
+const (
+	productListCacheKey = "products:all"
+
+	// produk cukup sering berubah (stok, harga via variant, CRUD admin),
+	// TTL pendek agar stale tidak terasa.
+	productListCacheTTL = 15 * time.Minute
 )
 
 type Service interface {
@@ -45,12 +59,14 @@ type Service interface {
 type service struct {
 	repo         Repository
 	categoryRepo category.Repository
+	cache        redisClient.Cache
 }
 
-func NewService(repo Repository, categoryRepo category.Repository) *service {
+func NewService(repo Repository, categoryRepo category.Repository, cache redisClient.Cache) *service {
 	return &service{
 		repo:         repo,
 		categoryRepo: categoryRepo,
+		cache:        cache,
 	}
 }
 
@@ -88,6 +104,8 @@ func (s *service) Create(ctx context.Context, req CreateProductRequest) (models.
 	if err != nil {
 		return models.Product{}, err
 	}
+
+	s.invalidateListCache(ctx)
 
 	return created, nil
 
@@ -135,20 +153,64 @@ func (s *service) Update(ctx context.Context, id uuid.UUID, req UpdateProductReq
 		return models.Product{}, err
 	}
 
+	s.invalidateListCache(ctx)
+
 	return updated, nil
 
 }
 
 func (s *service) FindAll(ctx context.Context) ([]models.Product, error) {
 
-	products, err := s.repo.FindAll(ctx)
+	// Redis bermasalah bukan berarti list produk harus gagal.
+	cached, err := s.cache.Get(ctx, productListCacheKey)
 
+	if err == nil {
+		var products []models.Product
+
+		if err := json.Unmarshal(cached, &products); err == nil {
+			return products, nil
+		}
+
+		// Cache tidak valid: hapus dan ambil ulang dari database.
+		slog.WarnContext(ctx, "invalid product cache",
+			"key", productListCacheKey,
+		)
+		_ = s.cache.Delete(ctx, productListCacheKey)
+
+	} else if !errors.Is(err, redisClient.ErrCacheMiss) {
+		slog.WarnContext(ctx, "product cache unavailable",
+			"error", err,
+		)
+	}
+
+	products, err := s.repo.FindAll(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return products, nil
+	data, err := json.Marshal(products)
+	if err != nil {
+		return nil, fmt.Errorf("marshal products: %w", err)
+	}
 
+	if err := s.cache.Set(ctx, productListCacheKey, data, productListCacheTTL); err != nil {
+		slog.WarnContext(ctx, "failed to cache products",
+			"key", productListCacheKey,
+			"error", err,
+		)
+	}
+
+	return products, nil
+}
+
+// invalidateListCache menghapus cache list setelah ada perubahan data produk.
+func (s *service) invalidateListCache(ctx context.Context) {
+	if err := s.cache.Delete(ctx, productListCacheKey); err != nil {
+		slog.WarnContext(ctx, "failed to invalidate product cache",
+			"key", productListCacheKey,
+			"error", err,
+		)
+	}
 }
 
 func (s *service) FindByID(ctx context.Context, ID uuid.UUID) (models.Product, error) {
@@ -180,6 +242,8 @@ func (s *service) Delete(
 	if err != nil {
 		return err
 	}
+
+	s.invalidateListCache(ctx)
 
 	return nil
 }
