@@ -8,45 +8,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-type DatabaseConfig struct {
-	Host     string
-	Port     string
-	Name     string
-	SSLMode  string
-	User     string
-	Password string
-	AppPort  string
-}
-
-type JWTConfig struct {
-	SecretKey string
-}
-
-type MailConfig struct {
-	Host            string
-	Port            string
-	Username        string
-	Password        string
-	From            string
-	AppBaseURL      string
-	FrontendBaseURL string
-}
-
-type R2Storage struct {
-	AccountID       string
-	AccessKeyID     string
-	SecretAccessKey string
-	Bucket          string
-	PublicURL       string
-}
-
-type Config struct {
-	Database DatabaseConfig
-	JWT      JWTConfig
-	Mail     MailConfig
-	R2       R2Storage
-}
-
 func Load() (Config, error) {
 
 	_ = godotenv.Load()
@@ -142,6 +103,36 @@ func Load() (Config, error) {
 		return Config{}, errors.New("R2_PUBLIC_URL is required")
 	}
 
+	redisHost := os.Getenv("REDIS_HOST")
+	if redisHost == "" {
+		return Config{}, errors.New("REDIS_HOST is required")
+	}
+
+	redisPort := os.Getenv("REDIS_PORT")
+	if redisPort == "" {
+		return Config{}, errors.New("REDIS_PORT is required")
+	}
+
+	redisPassword := os.Getenv("REDIS_PASSWORD")
+	if redisPassword == "" {
+		return  Config{},errors.New("REDIS_PASSWORD is required")
+	}
+
+	biteshipApiKey := os.Getenv("BITESHIP_API_KEY")
+	if biteshipApiKey == "" {
+		return Config{},errors.New("BITESHIP_API_KEY is required")
+	}
+
+	biteshipBaseURL := os.Getenv("BITESHIP_BASE_URL")
+	if biteshipBaseURL == "" {
+		return  Config{},errors.New("BITESHIP_BASE_URL is required")
+	}
+
+	biteshipTimeout := os.Getenv("BITESHIP_TIMEOUT")
+	if biteshipTimeout == "" {
+		return  Config{},errors.New("BITESHIP_TIMEOUT is required")
+	}
+
 	dbConfig := DatabaseConfig{
 		Host:     dbHost,
 		Port:     dbPort,
@@ -151,6 +142,7 @@ func Load() (Config, error) {
 		Password: dbPassword,
 		AppPort:  appPort,
 	}
+
 
 	return Config{
 		Database: dbConfig,
@@ -172,6 +164,16 @@ func Load() (Config, error) {
 			SecretAccessKey: r2SecretAccessKey,
 			Bucket:          r2Bucket,
 			PublicURL:       r2PublicURL,
+		},
+		Redis: RedisConfig{
+			Host: redisHost,
+			Port: redisPort,
+			Password: redisPassword,
+		},
+		Biteship: BiteshipConfig{
+			ApiKey: biteshipApiKey,
+			BaseURL: biteshipBaseURL,
+			Timeout: biteshipTimeout,
 		},
 	}, nil
 
