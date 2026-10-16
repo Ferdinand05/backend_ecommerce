@@ -100,6 +100,9 @@ func (f *fakeVariantRepo) FindBySKU(ctx context.Context, sku string) (models.Pro
 func (f *fakeVariantRepo) ExistsBySKUExceptID(ctx context.Context, sku string, id uuid.UUID) (bool, error) {
 	return false, nil
 }
+func (f *fakeVariantRepo) FindByIDs(ctx context.Context, ids []uuid.UUID) ([]models.ProductVariant, error) {
+	return nil, nil
+}
 func (f *fakeVariantRepo) Update(ctx context.Context, id uuid.UUID, variant models.ProductVariant) error {
 	return nil
 }
