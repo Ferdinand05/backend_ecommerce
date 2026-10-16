@@ -39,9 +39,11 @@ type RedisConfig struct {
 }
 
 type BiteshipConfig struct {
-	ApiKey  string
-	BaseURL string
-	Timeout string
+	ApiKey       string
+	BaseURL      string
+	Timeout      string
+	OriginAreaID string
+	Couriers     string
 }
 
 type Config struct {
