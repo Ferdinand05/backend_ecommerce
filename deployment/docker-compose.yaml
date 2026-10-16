@@ -26,6 +26,8 @@ services:
 
   redis:
     image: redis:7-alpine
+    ports:
+      - "6379:6379"
     container_name: ecommerce-redis
     restart: unless-stopped
     command: ["redis-server", "--save", "", "--appendonly", "no"]
@@ -34,6 +36,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    networks:
+      - ecommerce_network
 
   migrate:
     image: migrate/migrate:v4.19.0
