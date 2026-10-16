@@ -66,6 +66,11 @@ type fakeProvider struct {
 	searchAreasRes []Area
 	searchAreasErr error
 	calls          int
+
+	ratesRes     []ShippingRate
+	ratesErr     error
+	ratesCalls   int
+	lastRatesReq RatesProviderRequest
 }
 
 func (f *fakeProvider) SearchAreas(ctx context.Context, query string) ([]Area, error) {
@@ -73,9 +78,15 @@ func (f *fakeProvider) SearchAreas(ctx context.Context, query string) ([]Area, e
 	return f.searchAreasRes, f.searchAreasErr
 }
 
+func (f *fakeProvider) CalculateRates(ctx context.Context, req RatesProviderRequest) ([]ShippingRate, error) {
+	f.ratesCalls++
+	f.lastRatesReq = req
+	return f.ratesRes, f.ratesErr
+}
+
 func TestSearchAreasEmptyQuery(t *testing.T) {
 	provider := &fakeProvider{}
-	svc := NewService(&fakeCache{data: map[string][]byte{}}, provider)
+	svc := NewService(&fakeCache{data: map[string][]byte{}}, provider, &fakeVariantRepo{}, "ORIGIN", "jne")
 
 	_, err := svc.SearchAreas(context.Background(), "   ")
 	if !errors.Is(err, ErrInvalidAreaQuery) {
@@ -90,7 +101,7 @@ func TestSearchAreasEmptyQuery(t *testing.T) {
 func TestSearchAreasCacheMiss(t *testing.T) {
 	provider := &fakeProvider{searchAreasRes: []Area{{ID: "IDJA", Name: "Jakarta", PostalCode: 10110}}}
 	cache := &fakeCache{data: map[string][]byte{}}
-	svc := NewService(cache, provider)
+	svc := NewService(cache, provider, &fakeVariantRepo{}, "ORIGIN", "jne")
 
 	got, err := svc.SearchAreas(context.Background(), "  Jakarta  ")
 	if err != nil {
@@ -117,7 +128,7 @@ func TestSearchAreasCacheMiss(t *testing.T) {
 func TestSearchAreasCacheHitSkipsProvider(t *testing.T) {
 	provider := &fakeProvider{}
 	cache := &fakeCache{data: map[string][]byte{}}
-	svc := NewService(cache, provider)
+	svc := NewService(cache, provider, &fakeVariantRepo{}, "ORIGIN", "jne")
 
 	if _, err := svc.SearchAreas(context.Background(), "Jakarta"); err != nil {
 		t.Fatalf("SearchAreas() first error = %v", err)
@@ -136,7 +147,7 @@ func TestSearchAreasCacheHitSkipsProvider(t *testing.T) {
 func TestSearchAreasCorruptCacheFallsBackToProvider(t *testing.T) {
 	provider := &fakeProvider{searchAreasRes: []Area{{ID: "IDBD", Name: "Bandung"}}}
 	cache := &fakeCache{data: map[string][]byte{"shipping:areas:bandung": []byte("{not-json")}}
-	svc := NewService(cache, provider)
+	svc := NewService(cache, provider, &fakeVariantRepo{}, "ORIGIN", "jne")
 
 	got, err := svc.SearchAreas(context.Background(), "bandung")
 	if err != nil {
@@ -155,7 +166,7 @@ func TestSearchAreasCorruptCacheFallsBackToProvider(t *testing.T) {
 func TestSearchAreasRedisErrorFallsBackToProvider(t *testing.T) {
 	provider := &fakeProvider{searchAreasRes: []Area{{ID: "IDSB", Name: "Surabaya"}}}
 	cache := &fakeCache{data: map[string][]byte{}, getErr: errors.New("redis down")}
-	svc := NewService(cache, provider)
+	svc := NewService(cache, provider, &fakeVariantRepo{}, "ORIGIN", "jne")
 
 	got, err := svc.SearchAreas(context.Background(), "surabaya")
 	if err != nil {
@@ -170,7 +181,7 @@ func TestSearchAreasRedisErrorFallsBackToProvider(t *testing.T) {
 func TestSearchAreasSetFailureStillSucceeds(t *testing.T) {
 	provider := &fakeProvider{searchAreasRes: []Area{{ID: "IDMD", Name: "Medan"}}}
 	cache := &fakeCache{data: map[string][]byte{}, setErr: errors.New("redis read-only")}
-	svc := NewService(cache, provider)
+	svc := NewService(cache, provider, &fakeVariantRepo{}, "ORIGIN", "jne")
 
 	got, err := svc.SearchAreas(context.Background(), "medan")
 	if err != nil {
@@ -188,7 +199,7 @@ func TestSearchAreasProviderError(t *testing.T) {
 	provider := &fakeProvider{
 		searchAreasErr: fmt.Errorf("%w: biteship down", ErrAreaProvider),
 	}
-	svc := NewService(&fakeCache{data: map[string][]byte{}}, provider)
+	svc := NewService(&fakeCache{data: map[string][]byte{}}, provider, &fakeVariantRepo{}, "ORIGIN", "jne")
 
 	_, err := svc.SearchAreas(context.Background(), "jakarta")
 	if !errors.Is(err, ErrAreaProvider) {
@@ -199,7 +210,7 @@ func TestSearchAreasProviderError(t *testing.T) {
 func TestSearchAreasUnknownProviderErrorPassesThrough(t *testing.T) {
 	providerErr := errors.New("mystery")
 	provider := &fakeProvider{searchAreasErr: providerErr}
-	svc := NewService(&fakeCache{data: map[string][]byte{}}, provider)
+	svc := NewService(&fakeCache{data: map[string][]byte{}}, provider, &fakeVariantRepo{}, "ORIGIN", "jne")
 
 	_, err := svc.SearchAreas(context.Background(), "jakarta")
 	if !errors.Is(err, providerErr) {
