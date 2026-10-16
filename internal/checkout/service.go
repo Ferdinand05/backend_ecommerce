@@ -78,7 +78,9 @@ func (s *service) Preview(
 	subtotal := decimal.Zero
 
 	for _, item := range cart.Items {
-		// Harga terkini dibaca dari database lewat GetCart (preload variant).
+		// Cart hanya menyumbang ProductVariantID + Quantity.
+		// Harga, nama, SKU, dan berat diambil dari hasil query varian terbaru
+		// agar tidak bergantung pada data cart yang bisa tidak sinkron.
 		variant, found := variantByID[item.ProductVariantID]
 		if !found || !variant.IsActive {
 			return PreviewResponse{}, fmt.Errorf(
@@ -119,18 +121,20 @@ func (s *service) Preview(
 			)
 		}
 
-		itemSubtotal := item.Price.Mul(
+		unitPrice := variant.Price
+
+		itemSubtotal := unitPrice.Mul(
 			decimal.NewFromInt(int64(item.Quantity)),
 		)
 		subtotal = subtotal.Add(itemSubtotal)
 
 		items = append(items, PreviewItemResponse{
 			ProductVariantID: item.ProductVariantID,
-			ProductName:      item.ProductName,
-			VariantName:      item.Name,
-			SKU:              item.SKU,
+			ProductName:      variant.Product.Name,
+			VariantName:      variant.Name,
+			SKU:              variant.SKU,
 			Quantity:         item.Quantity,
-			UnitPrice:        item.Price,
+			UnitPrice:        unitPrice,
 			Subtotal:         itemSubtotal,
 			WeightGrams:      variant.WeightGrams,
 			AvailableStock:   inventoryItem.Quantity,

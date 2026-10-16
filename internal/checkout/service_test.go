@@ -125,10 +125,13 @@ func cartWithSingleItem() (cartitems.CartResponse, uuid.UUID) {
 				ID:               uuid.New(),
 				ProductVariantID: variantID,
 				Quantity:         2,
-				SKU:              "KAOS-MERAH-M",
-				Name:             "Merah, M",
-				Price:            decimal.NewFromInt(95000),
-				ProductName:      "Kaos Polos",
+
+				// Sengaja beda dari data varian terbaru: preview wajib
+				// memakai hasil query varian, bukan data lama di cart.
+				SKU:         "LAMA-SKU",
+				Name:        "Nama Lama",
+				Price:       decimal.NewFromInt(95000),
+				ProductName: "Nama Produk Lama",
 			},
 		},
 	}
@@ -147,11 +150,18 @@ func newTestService(
 func TestPreviewSuccess(t *testing.T) {
 	cart, variantID := cartWithSingleItem()
 
-	// Simulasi harga berubah di DB: harga keranjang = harga terbaru dari DB.
 	cartSvc := &fakeCartService{cart: cart}
 	invSvc := &fakeInventoryRepo{item: models.InventoryItem{Quantity: 5}}
 	variantSvc := &fakeVariantRepo{variants: []models.ProductVariant{
-		{ID: variantID, Name: "Merah, M", IsActive: true, WeightGrams: 250},
+		{
+			ID:          variantID,
+			Name:        "Merah, M",
+			SKU:         "KAOS-MERAH-M",
+			Price:       decimal.NewFromInt(88000),
+			IsActive:    true,
+			WeightGrams: 250,
+			Product:     models.Product{Name: "Kaos Premium"},
+		},
 	}}
 	svc := newTestService(cartSvc, invSvc, variantSvc)
 
@@ -166,21 +176,26 @@ func TestPreviewSuccess(t *testing.T) {
 
 	item := got.Items[0]
 
-	if item.ProductName != "Kaos Polos" || item.VariantName != "Merah, M" || item.SKU != "KAOS-MERAH-M" {
-		t.Fatalf("item identitas = %+v, want dari cart", item)
+	// Identitas wajib dari query varian terbaru, bukan data cart.
+	if item.ProductName != "Kaos Premium" {
+		t.Fatalf("product name = %q, want dari varian repo", item.ProductName)
 	}
 
-	// Harga terkini × quantity.
-	if !item.UnitPrice.Equal(decimal.NewFromInt(95000)) {
-		t.Fatalf("unit price = %s, want 95000 (harga live DB)", item.UnitPrice)
+	if item.VariantName != "Merah, M" || item.SKU != "KAOS-MERAH-M" {
+		t.Fatalf("item identitas = %+v, want dari varian repo", item)
 	}
 
-	if !item.Subtotal.Equal(decimal.NewFromInt(190000)) {
-		t.Fatalf("item subtotal = %s, want 190000", item.Subtotal)
+	// Harga terkini × quantity: 88000 × 2 (bukan harga lama di cart).
+	if !item.UnitPrice.Equal(decimal.NewFromInt(88000)) {
+		t.Fatalf("unit price = %s, want 88000 (harga varian terbaru)", item.UnitPrice)
 	}
 
-	if !got.Subtotal.Equal(decimal.NewFromInt(190000)) {
-		t.Fatalf("total subtotal = %s, want 190000", got.Subtotal)
+	if !item.Subtotal.Equal(decimal.NewFromInt(176000)) {
+		t.Fatalf("item subtotal = %s, want 176000", item.Subtotal)
+	}
+
+	if !got.Subtotal.Equal(decimal.NewFromInt(176000)) {
+		t.Fatalf("total subtotal = %s, want 176000", got.Subtotal)
 	}
 
 	if item.WeightGrams != 250 {
@@ -198,14 +213,14 @@ func TestPreviewMultipleItemsSumsSubtotal(t *testing.T) {
 
 	cartSvc := &fakeCartService{cart: cartitems.CartResponse{
 		Items: []cartitems.CartItemResponse{
-			{ProductVariantID: variantA, Quantity: 2, Price: decimal.NewFromInt(50000), ProductName: "A", Name: "a", SKU: "A"},
-			{ProductVariantID: variantB, Quantity: 1, Price: decimal.NewFromInt(30000), ProductName: "B", Name: "b", SKU: "B"},
+			{ProductVariantID: variantA, Quantity: 2},
+			{ProductVariantID: variantB, Quantity: 1},
 		},
 	}}
 	invSvc := &fakeInventoryRepo{item: models.InventoryItem{Quantity: 10}}
 	variantSvc := &fakeVariantRepo{variants: []models.ProductVariant{
-		{ID: variantA, IsActive: true, WeightGrams: 100},
-		{ID: variantB, IsActive: true, WeightGrams: 200},
+		{ID: variantA, IsActive: true, WeightGrams: 100, Price: decimal.NewFromInt(50000)},
+		{ID: variantB, IsActive: true, WeightGrams: 200, Price: decimal.NewFromInt(30000)},
 	}}
 	svc := newTestService(cartSvc, invSvc, variantSvc)
 

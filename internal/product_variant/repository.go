@@ -41,7 +41,8 @@ func (r *repository) FindByIDs(ctx context.Context, IDs []uuid.UUID) ([]models.P
 
 	var productVariants []models.ProductVariant
 
-	err := db.Where("id IN ?", IDs).
+	err := db.Preload("Product").
+		Where("id IN ?", IDs).
 		Find(&productVariants).
 		Error
 
