@@ -19,6 +19,8 @@ type Repository interface {
 	ExistsBySKUExceptID(ctx context.Context, sku string, id uuid.UUID) (bool, error)
 	Update(ctx context.Context, id uuid.UUID, variant models.ProductVariant) error
 	Delete(ctx context.Context, id uuid.UUID) error
+
+	FindByIDs(ctx context.Context, IDs []uuid.UUID) ([]models.ProductVariant, error)
 }
 
 type repository struct {
@@ -27,6 +29,28 @@ type repository struct {
 
 func NewRepository(db *gorm.DB) *repository {
 	return &repository{db: db}
+}
+
+func (r *repository) FindByIDs(ctx context.Context, IDs []uuid.UUID) ([]models.ProductVariant, error) {
+
+	if len(IDs) == 0 {
+		return []models.ProductVariant{}, nil
+	}
+
+	db := database.GetDB(ctx, r.db).WithContext(ctx)
+
+	var productVariants []models.ProductVariant
+
+	err := db.Where("id IN ?", IDs).
+		Find(&productVariants).
+		Error
+
+	if err != nil {
+		return nil, fmt.Errorf("finding product variant by ids:%w", err)
+	}
+
+	return productVariants, nil
+
 }
 
 func (r *repository) Create(ctx context.Context, variant models.ProductVariant) error {

@@ -7,4 +7,9 @@ type Provider interface {
 		ctx context.Context,
 		query string,
 	) ([]Area, error)
+
+	CalculateRates(
+		ctx context.Context,
+		req RatesProviderRequest,
+	) ([]ShippingRate, error)
 }

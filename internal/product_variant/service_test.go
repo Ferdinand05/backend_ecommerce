@@ -62,6 +62,10 @@ func (f *fakeRepo) ExistsBySKUExceptID(ctx context.Context, sku string, id uuid.
 	return f.existsBySKU, f.existsBySKUErr
 }
 
+func (f *fakeRepo) FindByIDs(ctx context.Context, ids []uuid.UUID) ([]models.ProductVariant, error) {
+	return nil, nil
+}
+
 func (f *fakeRepo) Update(ctx context.Context, id uuid.UUID, variant models.ProductVariant) error {
 	f.updateID = id
 	f.updateArg = variant

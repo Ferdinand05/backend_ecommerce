@@ -61,3 +61,57 @@ func (h *Handler) SearchAreas(c *gin.Context) {
 		Areas: areas,
 	})
 }
+
+func (h *Handler) CalculateRates(c *gin.Context) {
+
+	var req CalculateRatesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid request body",
+		})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(
+		c.Request.Context(),
+		10*time.Second,
+	)
+	defer cancel()
+
+	rates, err := h.service.CalculateRates(ctx, req)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrInvalidRatesInput):
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid shipping rates request",
+			})
+
+		case errors.Is(err, ErrVariantNotAvailable):
+			c.JSON(http.StatusUnprocessableEntity, gin.H{
+				"error": "one or more product variants are not available for shipping",
+			})
+
+		case errors.Is(err, ErrAreaProvider):
+			slog.ErrorContext(ctx, "shipping rates provider failed",
+				"error", err,
+			)
+			c.JSON(http.StatusBadGateway, gin.H{
+				"error": "failed to calculate shipping rates",
+			})
+
+		default:
+			slog.ErrorContext(ctx, "failed to calculate shipping rates",
+				"error", err,
+			)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "internal server error",
+			})
+		}
+
+		return
+	}
+
+	c.JSON(http.StatusOK, CalculateRatesResponse{
+		Rates: rates,
+	})
+}

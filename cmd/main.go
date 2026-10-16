@@ -58,7 +58,7 @@ func main() {
 	//redis
 	redisClientService := redis.NewRedisClient(cfg.Redis)
 
-	_,err = redisClientService.Ping(ctx).Result()
+	_, err = redisClientService.Ping(ctx).Result()
 	if err != nil {
 		log.Fatalf("failed to connect to redis: %v", err)
 	}
@@ -79,7 +79,7 @@ func main() {
 	categoryHandler := category.NewHandler(categoryService)
 
 	productRepo := product.NewRepository(db)
-	productService := product.NewService(productRepo, categoryRepo,redisClientCache)
+	productService := product.NewService(productRepo, categoryRepo, redisClientCache)
 	productHandler := product.NewHandler(productService)
 
 	productVariantRepo := productvariant.NewRepository(db)
@@ -121,6 +121,23 @@ func main() {
 	passwordResetRepo := auth.NewPasswordResetRepository(db)
 	emailSender := mail.NewSMTPSender(mail.SMTPConfig(cfg.Mail))
 
+	// Biteship client
+	timeout, _ := strconv.Atoi(cfg.Biteship.Timeout)
+	timeoutInSecond := time.Duration(timeout) * time.Second
+	biteshipClient := biteship.NewClient(cfg.Biteship.BaseURL, cfg.Biteship.ApiKey, timeoutInSecond)
+
+	// Biteship provider
+	biteshipProvider := biteship.NewProvider(biteshipClient)
+
+	shippingService := shipping.NewService(
+		redisClientCache,
+		biteshipProvider,
+		productVariantRepo,
+		cfg.Biteship.OriginAreaID,
+		cfg.Biteship.Couriers,
+	)
+	shippingHandler := shipping.NewHandler(shippingService)
+
 	authSvc := auth.NewService(
 		userRepo,
 		roleRepo,
@@ -133,17 +150,6 @@ func main() {
 	)
 	authHandler := auth.NewHandler(authSvc)
 
-	// Biteship client
-	timeout,_ := strconv.Atoi(cfg.Biteship.Timeout)
-	timeoutInSecond := time.Duration(timeout) * time.Second
-	biteshipClient := biteship.NewClient(cfg.Biteship.BaseURL,cfg.Biteship.ApiKey,timeoutInSecond)
-
-	// Biteship provider
-	biteshipProvider := biteship.NewProvider(biteshipClient)
-	
-	shippingService := shipping.NewService(redisClientCache,biteshipProvider)
-	shippingHandler := shipping.NewHandler(shippingService)
-
 	handlers := router.RouteHandlers{
 		UserHandler:           userHandler,
 		AuthHandler:           authHandler,
@@ -155,7 +161,7 @@ func main() {
 		InventoryHandler:      inventoryHandler,
 		CartHandler:           cartHandler,
 		OrderHandler:          orderHandler,
-		ShippingHandler:shippingHandler ,
+		ShippingHandler:       shippingHandler,
 	}
 
 	r := router.New(handlers, jwtSvc)

@@ -115,22 +115,32 @@ func Load() (Config, error) {
 
 	redisPassword := os.Getenv("REDIS_PASSWORD")
 	if redisPassword == "" {
-		return  Config{},errors.New("REDIS_PASSWORD is required")
+		return Config{}, errors.New("REDIS_PASSWORD is required")
 	}
 
 	biteshipApiKey := os.Getenv("BITESHIP_API_KEY")
 	if biteshipApiKey == "" {
-		return Config{},errors.New("BITESHIP_API_KEY is required")
+		return Config{}, errors.New("BITESHIP_API_KEY is required")
 	}
 
 	biteshipBaseURL := os.Getenv("BITESHIP_BASE_URL")
 	if biteshipBaseURL == "" {
-		return  Config{},errors.New("BITESHIP_BASE_URL is required")
+		return Config{}, errors.New("BITESHIP_BASE_URL is required")
 	}
 
 	biteshipTimeout := os.Getenv("BITESHIP_TIMEOUT")
 	if biteshipTimeout == "" {
-		return  Config{},errors.New("BITESHIP_TIMEOUT is required")
+		return Config{}, errors.New("BITESHIP_TIMEOUT is required")
+	}
+
+	biteshipOriginAreaID := os.Getenv("BITESHIP_ORIGIN_AREA_ID")
+	if biteshipOriginAreaID == "" {
+		return Config{}, errors.New("BITESHIP_ORIGIN_AREA_ID is required")
+	}
+
+	biteshipCouriers := os.Getenv("BITESHIP_COURIERS")
+	if biteshipCouriers == "" {
+		return Config{}, errors.New("BITESHIP_COURIERS is required")
 	}
 
 	dbConfig := DatabaseConfig{
@@ -142,7 +152,6 @@ func Load() (Config, error) {
 		Password: dbPassword,
 		AppPort:  appPort,
 	}
-
 
 	return Config{
 		Database: dbConfig,
@@ -166,14 +175,16 @@ func Load() (Config, error) {
 			PublicURL:       r2PublicURL,
 		},
 		Redis: RedisConfig{
-			Host: redisHost,
-			Port: redisPort,
+			Host:     redisHost,
+			Port:     redisPort,
 			Password: redisPassword,
 		},
 		Biteship: BiteshipConfig{
-			ApiKey: biteshipApiKey,
-			BaseURL: biteshipBaseURL,
-			Timeout: biteshipTimeout,
+			ApiKey:       biteshipApiKey,
+			BaseURL:      biteshipBaseURL,
+			Timeout:      biteshipTimeout,
+			OriginAreaID: biteshipOriginAreaID,
+			Couriers:     biteshipCouriers,
 		},
 	}, nil
 

@@ -1,6 +1,7 @@
 package biteship
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -88,4 +89,55 @@ func (c *Client) SearchAreas(
 	}
 
 	return result.Areas, nil
+}
+
+func (c *Client) CalculateRates(
+	ctx context.Context,
+	reqBody ratesAPIRequest,
+) ([]ratesAPIPricing, error) {
+	endpoint := c.baseURL + "/v1/rates/couriers"
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("marshal rates request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		endpoint,
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create Biteship rates request: %w", err)
+	}
+
+	req.Header.Set("Authorization", c.apiKey)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("send Biteship rates request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(
+			"Biteship rates returned HTTP status %d",
+			resp.StatusCode,
+		)
+	}
+
+	var result ratesAPIResponse
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode Biteship rates response: %w", err)
+	}
+
+	if !result.Success {
+		return nil, fmt.Errorf("Biteship rates calculation was unsuccessful")
+	}
+
+	return result.Pricing, nil
 }

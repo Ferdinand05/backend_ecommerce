@@ -2,6 +2,8 @@ package biteship
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -110,5 +112,116 @@ func TestClientDefaults(t *testing.T) {
 
 	if client.httpClient.Timeout != 5*time.Second {
 		t.Fatalf("timeout = %v, want 5s", client.httpClient.Timeout)
+	}
+}
+
+// CalculateRates tests
+
+func TestClientCalculateRates(t *testing.T) {
+	var gotAuth, gotContentType, gotMethod string
+	var gotBody []byte
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		gotContentType = r.Header.Get("Content-Type")
+		gotMethod = r.Method
+		gotBody, _ = io.ReadAll(r.Body)
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"success": true,
+			"pricing": [
+				{
+					"courier_code": "jne",
+					"courier_name": "JNE",
+					"courier_service_code": "reg",
+					"courier_service_name": "Reguler",
+					"description": "Layanan reguler",
+					"price": 18000,
+					"shipment_duration_range": "2 - 3",
+					"shipment_duration_unit": "days"
+				}
+			]
+		}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test-api-key", 0)
+
+	results, err := client.CalculateRates(context.Background(), ratesAPIRequest{
+		OriginAreaID:      "IDNP6",
+		DestinationAreaID: "IDNP3",
+		Couriers:          "jne",
+		Items: []ratesAPIItem{
+			{Name: "Shoes", Value: 199000, Weight: 500, Quantity: 2},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CalculateRates() error = %v", err)
+	}
+
+	if gotAuth != "test-api-key" {
+		t.Fatalf("auth = %q, want api key", gotAuth)
+	}
+	if gotContentType != "application/json" {
+		t.Fatalf("content-type = %q, want application/json", gotContentType)
+	}
+	if gotMethod != http.MethodPost {
+		t.Fatalf("method = %q, want POST", gotMethod)
+	}
+
+	// Verifikasi body mengirim weight per unit, bukan weight*quantity.
+	var sentBody ratesAPIRequest
+	if err := json.Unmarshal(gotBody, &sentBody); err != nil {
+		t.Fatalf("unmarshal sent body: %v", err)
+	}
+	if sentBody.Items[0].Weight != 500 || sentBody.Items[0].Quantity != 2 {
+		t.Fatalf("body items = %+v, want weight=500 quantity=2 (tidak boleh pre-multiply)", sentBody.Items[0])
+	}
+
+	if len(results) != 1 || results[0].CourierCode != "jne" || results[0].Price != 18000 {
+		t.Fatalf("results = %v, want jne 18000", results)
+	}
+}
+
+func TestClientCalculateRatesNonOKStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "bad-key", 0)
+
+	_, err := client.CalculateRates(context.Background(), ratesAPIRequest{})
+	if err == nil {
+		t.Fatal("want error for HTTP 401")
+	}
+}
+
+func TestClientCalculateRatesUnsuccessful(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"success": false, "pricing": []}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test-api-key", 0)
+
+	_, err := client.CalculateRates(context.Background(), ratesAPIRequest{})
+	if err == nil {
+		t.Fatal("want error when success=false")
+	}
+}
+
+func TestClientCalculateRatesInvalidJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("{broken"))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test-api-key", 0)
+
+	_, err := client.CalculateRates(context.Background(), ratesAPIRequest{})
+	if err == nil {
+		t.Fatal("want decode error")
 	}
 }
