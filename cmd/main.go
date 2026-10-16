@@ -8,6 +8,7 @@ import (
 	"ferdinand/ecommerce/internal/auth"
 	cartitems "ferdinand/ecommerce/internal/cart_items"
 	"ferdinand/ecommerce/internal/category"
+	"ferdinand/ecommerce/internal/checkout"
 	"ferdinand/ecommerce/internal/inventory"
 	"ferdinand/ecommerce/internal/mail"
 	"ferdinand/ecommerce/internal/order"
@@ -150,6 +151,9 @@ func main() {
 	)
 	authHandler := auth.NewHandler(authSvc)
 
+	checkoutService := checkout.NewService(cartService, inventoryItemRepo, productVariantRepo)
+	checkoutHandler := checkout.NewHandler(checkoutService)
+
 	handlers := router.RouteHandlers{
 		UserHandler:           userHandler,
 		AuthHandler:           authHandler,
@@ -162,6 +166,7 @@ func main() {
 		CartHandler:           cartHandler,
 		OrderHandler:          orderHandler,
 		ShippingHandler:       shippingHandler,
+		CheckoutHandler:       checkoutHandler,
 	}
 
 	r := router.New(handlers, jwtSvc)
