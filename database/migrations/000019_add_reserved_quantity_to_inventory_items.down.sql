@@ -1,0 +1,2 @@
+ALTER TABLE inventory_items DROP CONSTRAINT chk_inventory_items_reserved_quantity;
+ALTER TABLE inventory_items DROP COLUMN reserved_quantity;
