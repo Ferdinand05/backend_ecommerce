@@ -18,6 +18,12 @@ type Order struct {
 	DiscountAmount decimal.Decimal `gorm:"type:numeric(19,4);not null;default:0"`
 	TotalAmount    decimal.Decimal `gorm:"type:numeric(19,4);not null"`
 
+	CourierCode        string     `gorm:"type:varchar(50);not null"`
+	CourierServiceCode string     `gorm:"type:varchar(50);not null"`
+	CourierName        string     `gorm:"type:varchar(100);not null"`
+	CourierServiceName string     `gorm:"type:varchar(100);not null"`
+	PaymentExpiresAt   *time.Time `gorm:"index"`
+
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
