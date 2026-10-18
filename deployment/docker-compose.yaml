@@ -59,7 +59,7 @@ services:
   api:
     build:
       context: ..
-      dockerfile: deployment/Dockerfile
+      dockerfile: deployment/Dockerfile.dev
     container_name: ecommerce_api
     restart: unless-stopped
     depends_on:
