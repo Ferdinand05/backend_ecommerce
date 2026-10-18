@@ -53,8 +53,8 @@ jobs:
             git pull origin main
 
             # Gunakan spesifik docker-compose.prod.yaml untuk deployment
-            docker compose -f docker-compose.prod.yaml pull api
-            docker compose -f docker-compose.prod.yaml up -d
+            docker compose --env-file .env -f deployment/docker-compose.prod.yaml pull api
+            docker compose --env-file .env -f deployment/docker-compose.prod.yaml up -d
 
             # Bersihkan image lama
             docker image prune -f
