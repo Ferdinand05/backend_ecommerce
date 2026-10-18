@@ -82,18 +82,17 @@ type OrderDetailResponse struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-
 type CreateOrderRequest struct {
-    RecipientName string `json:"recipient_name" binding:"required,max=150"`
-    Phone         string `json:"phone" binding:"required,max=30"`
-    Address       string `json:"address" binding:"required"`
-    City          string `json:"city" binding:"required,max=100"`
-    Province      string `json:"province" binding:"required,max=100"`
-    PostalCode    string `json:"postal_code" binding:"required,max=20"`
+	RecipientName string `json:"recipient_name" binding:"required,max=150"`
+	Phone         string `json:"phone" binding:"required,max=30"`
+	Address       string `json:"address" binding:"required"`
+	City          string `json:"city" binding:"required,max=100"`
+	Province      string `json:"province" binding:"required,max=100"`
+	PostalCode    string `json:"postal_code" binding:"required,max=20"`
 
-    DestinationAreaID string `json:"destination_area_id" binding:"required"`
-    DestinationAreaName string `json:"destination_area_name" binding:"required,max=255"`
+	DestinationAreaID   string `json:"destination_area_id" binding:"required"`
+	DestinationAreaName string `json:"destination_area_name" binding:"required,max=255"`
 
-    CourierCode        string `json:"courier_code" binding:"required"`
-    CourierServiceCode string `json:"courier_service_code" binding:"required"`
+	CourierCode        string `json:"courier_code" binding:"required"`
+	CourierServiceCode string `json:"courier_service_code" binding:"required"`
 }
