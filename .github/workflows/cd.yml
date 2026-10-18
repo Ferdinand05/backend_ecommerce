@@ -1,0 +1,60 @@
+name: Go CD
+
+# CD hanya berjalan jika CI ("Go CI") selesai
+on:
+  workflow_run:
+    workflows: ["Go CI"]
+    types:
+      - completed
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    name: Build & Push Image
+    # Memastikan CD hanya lanjut jika CI statusnya 'success'
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deployment/Dockerfile
+          push: true
+          # GANTI "username_docker_kamu" dengan username Docker Hub milikmu
+          tags: ${{ secrets.DOCKER_USERNAME }}/ecommerce-api:latest
+
+  deploy-to-ec2:
+    name: Deploy to EC2
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH into EC2 and Deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          # GANTI 'nama-folder-projectmu' dengan nama folder di dalam EC2
+          script: |
+            cd backend_ecommerce
+
+            # Tarik kode terbaru (untuk mendapatkan docker-compose.prod.yaml jika ada update)
+            git pull origin main
+
+            # Gunakan spesifik docker-compose.prod.yaml untuk deployment
+            docker compose -f docker-compose.prod.yaml pull api
+            docker compose -f docker-compose.prod.yaml up -d
+
+            # Bersihkan image lama
+            docker image prune -f
