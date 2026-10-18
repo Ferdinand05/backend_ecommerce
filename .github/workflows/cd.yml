@@ -31,7 +31,6 @@ jobs:
           context: .
           file: deployment/Dockerfile
           push: true
-          # GANTI "username_docker_kamu" dengan username Docker Hub milikmu
           tags: ${{ secrets.DOCKER_USERNAME }}/ecommerce-api:latest
 
   deploy-to-ec2:
@@ -45,7 +44,6 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          # GANTI 'nama-folder-projectmu' dengan nama folder di dalam EC2
           script: |
             cd backend_ecommerce
 
