@@ -60,7 +60,7 @@ services:
   api:
     # Mengambil image langsung dari Docker Hub
     # GANTI "username_docker_kamu" dengan username Docker Hub milikmu
-    image: ferdinando5/ecommerce-api:latest
+    image: ferdinand05/ecommerce-api:latest
     container_name: ecommerce_api
     restart: unless-stopped
     depends_on:
