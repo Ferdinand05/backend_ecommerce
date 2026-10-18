@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/smtp"
+	"time"
 )
 
 type SMTPConfig struct {
@@ -87,7 +88,7 @@ func (s *SMTPSender) SendVerificationEmail(
 </html>
 `, verifyURL)
 
-	return s.sendHTML(to, subject, htmlBody)
+	return s.sendHTML(ctx, to, subject, htmlBody)
 }
 
 func (s *SMTPSender) SendPasswordResetEmail(
@@ -149,10 +150,11 @@ func (s *SMTPSender) SendPasswordResetEmail(
 </html>
 `, resetURL)
 
-	return s.sendHTML(to, subject, htmlBody)
+	return s.sendHTML(ctx, to, subject, htmlBody)
 }
 
 func (s *SMTPSender) sendHTML(
+	ctx context.Context,
 	to string,
 	subject string,
 	htmlBody string,
@@ -184,6 +186,17 @@ func (s *SMTPSender) sendHTML(
 		)
 	}
 
+	slog.InfoContext(ctx, "mail.sending",
+		"host", s.cfg.Host,
+		"port", s.cfg.Port,
+		"from", s.cfg.From,
+		"to", to,
+		"subject", subject,
+		"auth_enabled", s.cfg.Username != "",
+	)
+
+	start := time.Now()
+
 	if err := smtp.SendMail(
 		addr,
 		auth,
@@ -191,9 +204,23 @@ func (s *SMTPSender) sendHTML(
 		[]string{to},
 		message,
 	); err != nil {
-		slog.Error("mail.send_failed", "error", err)
+		slog.ErrorContext(ctx, "mail.send_failed",
+			"host", s.cfg.Host,
+			"port", s.cfg.Port,
+			"from", s.cfg.From,
+			"to", to,
+			"subject", subject,
+			"duration_ms", time.Since(start).Milliseconds(),
+			"error", err,
+		)
 		return err
 	}
+
+	slog.InfoContext(ctx, "mail.sent",
+		"to", to,
+		"subject", subject,
+		"duration_ms", time.Since(start).Milliseconds(),
+	)
 
 	return nil
 }
