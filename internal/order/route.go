@@ -9,6 +9,7 @@ import (
 // router pada kedua group tersebut.
 func RegisterRoutes(me *gin.RouterGroup, admin *gin.RouterGroup, handler *Handler) {
 
+	me.POST("/orders", handler.CreateOrder)
 	me.GET("/orders", handler.ListMyOrders)
 	me.GET("/orders/:order_id", handler.GetMyOrder)
 

@@ -57,8 +57,8 @@ func (s *service) Preview(
 		return PreviewResponse{}, ErrCartEmpty
 	}
 
-	// Validasi varian: semua ditemukan dan masih aktif.
-	// Status produk induk belum diperiksa pada tahap ini.
+	// Validasi varian: semua ditemukan dan masih aktif,
+	// termasuk status produk induknya.
 	variantIDs := make([]uuid.UUID, 0, len(cart.Items))
 	for _, item := range cart.Items {
 		variantIDs = append(variantIDs, item.ProductVariantID)
@@ -82,9 +82,11 @@ func (s *service) Preview(
 		// Harga, nama, SKU, dan berat diambil dari hasil query varian terbaru
 		// agar tidak bergantung pada data cart yang bisa tidak sinkron.
 		variant, found := variantByID[item.ProductVariantID]
-		if !found || !variant.IsActive {
+
+		// Varian dan produk induk wajib aktif.
+		if !found || !variant.IsActive || !variant.Product.IsActive {
 			return PreviewResponse{}, fmt.Errorf(
-				"%w: variant %s is inactive or not found",
+				"%w: variant %s or its product is inactive or not found",
 				ErrVariantNotAvailable,
 				item.ProductVariantID,
 			)

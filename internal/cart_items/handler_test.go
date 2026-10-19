@@ -32,6 +32,8 @@ type fakeService struct {
 	decreaseErr     error
 
 	removeErr error
+
+	clearErr error
 }
 
 func (f *fakeService) GetCart(ctx context.Context, userID uuid.UUID) (CartResponse, error) {
@@ -52,6 +54,10 @@ func (f *fakeService) DecreaseItem(ctx context.Context, userID uuid.UUID, itemID
 
 func (f *fakeService) RemoveItem(ctx context.Context, userID uuid.UUID, itemID uuid.UUID) error {
 	return f.removeErr
+}
+
+func (f *fakeService) ClearCart(ctx context.Context, userID uuid.UUID) error {
+	return f.clearErr
 }
 
 type itemEnvelope struct {
@@ -292,5 +298,23 @@ func TestHandlerRemoveItemNotFound(t *testing.T) {
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandlerClearCart(t *testing.T) {
+	w := authRequest(t, newCartRouter(&fakeService{}), http.MethodDelete, "/api/v1/cart", "", uuid.New())
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusNoContent)
+	}
+}
+
+func TestHandlerClearCartError(t *testing.T) {
+	svc := &fakeService{clearErr: errors.New("db down")}
+
+	w := authRequest(t, newCartRouter(svc), http.MethodDelete, "/api/v1/cart", "", uuid.New())
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusInternalServerError)
 	}
 }

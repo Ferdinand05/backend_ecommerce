@@ -15,8 +15,15 @@ type OrderResponse struct {
 	ShippingCost   decimal.Decimal `json:"shipping_cost"`
 	DiscountAmount decimal.Decimal `json:"discount_amount"`
 	TotalAmount    decimal.Decimal `json:"total_amount"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
+
+	CourierCode        string     `json:"courier_code"`
+	CourierName        string     `json:"courier_name"`
+	CourierServiceCode string     `json:"courier_service_code"`
+	CourierServiceName string     `json:"courier_service_name"`
+	PaymentExpiresAt   *time.Time `json:"payment_expires_at,omitempty"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type OrderItemResponse struct {
@@ -73,6 +80,12 @@ type OrderDetailResponse struct {
 	ShippingCost   decimal.Decimal `json:"shipping_cost"`
 	DiscountAmount decimal.Decimal `json:"discount_amount"`
 	TotalAmount    decimal.Decimal `json:"total_amount"`
+
+	CourierCode        string     `json:"courier_code"`
+	CourierName        string     `json:"courier_name"`
+	CourierServiceCode string     `json:"courier_service_code"`
+	CourierServiceName string     `json:"courier_service_name"`
+	PaymentExpiresAt   *time.Time `json:"payment_expires_at,omitempty"`
 
 	Items           []OrderItemResponse          `json:"items"`
 	Address         OrderAddressResponse         `json:"address"`

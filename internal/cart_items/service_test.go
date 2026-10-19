@@ -41,7 +41,8 @@ type fakeRepo struct {
 	deleteErr error
 	deleteID  uuid.UUID
 
-	deleteAllErr error
+	deleteAllErr    error
+	deleteAllUserID uuid.UUID
 }
 
 func (f *fakeRepo) AddQuantity(ctx context.Context, userID uuid.UUID, variantID uuid.UUID, quantity int) (models.CartItem, error) {
@@ -81,6 +82,7 @@ func (f *fakeRepo) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 func (f *fakeRepo) DeleteAllByUserID(ctx context.Context, userID uuid.UUID) error {
+	f.deleteAllUserID = userID
 	return f.deleteAllErr
 }
 
@@ -381,6 +383,30 @@ func TestServiceRemoveItem(t *testing.T) {
 				t.Fatalf("RemoveItem() delete id = %v, want %v", tt.repo.deleteID, itemID)
 			}
 		})
+	}
+}
+
+func TestServiceClearCart(t *testing.T) {
+	userID := uuid.New()
+
+	repo := &fakeRepo{}
+	svc := NewService(repo, &fakeVariantRepo{})
+
+	if err := svc.ClearCart(context.Background(), userID); err != nil {
+		t.Fatalf("ClearCart() error = %v", err)
+	}
+
+	if repo.deleteAllUserID != userID {
+		t.Fatalf("ClearCart() delete user id = %v, want %v", repo.deleteAllUserID, userID)
+	}
+}
+
+func TestServiceClearCartError(t *testing.T) {
+	repoErr := errors.New("db down")
+	svc := NewService(&fakeRepo{deleteAllErr: repoErr}, &fakeVariantRepo{})
+
+	if err := svc.ClearCart(context.Background(), uuid.New()); !errors.Is(err, repoErr) {
+		t.Fatalf("ClearCart() error = %v, want pass-through repo error", err)
 	}
 }
 
