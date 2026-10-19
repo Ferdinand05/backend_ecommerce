@@ -4,13 +4,23 @@ import (
 	"context"
 
 	"ferdinand/ecommerce/database"
+	cartitems "ferdinand/ecommerce/internal/cart_items"
+	"ferdinand/ecommerce/internal/inventory"
 	"ferdinand/ecommerce/internal/models"
+	productvariant "ferdinand/ecommerce/internal/product_variant"
+	"ferdinand/ecommerce/internal/shipping"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 type Service interface {
+	CreateOrder(
+		ctx context.Context,
+		userID uuid.UUID,
+		req CreateOrderRequest,
+	) (models.Order, error)
+
 	FindMyOrders(
 		ctx context.Context,
 		userID uuid.UUID,
@@ -45,14 +55,29 @@ type Service interface {
 }
 
 type service struct {
-	repository Repository
-	db         *gorm.DB
+	repository    Repository
+	db            *gorm.DB
+	cartService   cartitems.Service
+	inventoryRepo inventory.InventoryRepository
+	variantRepo   productvariant.Repository
+	shippingSvc   shipping.Service
 }
 
-func NewService(repository Repository, db *gorm.DB) *service {
+func NewService(
+	repository Repository,
+	db *gorm.DB,
+	cartService cartitems.Service,
+	inventoryRepo inventory.InventoryRepository,
+	variantRepo productvariant.Repository,
+	shippingSvc shipping.Service,
+) *service {
 	return &service{
-		repository: repository,
-		db:         db,
+		repository:    repository,
+		db:            db,
+		cartService:   cartService,
+		inventoryRepo: inventoryRepo,
+		variantRepo:   variantRepo,
+		shippingSvc:   shippingSvc,
 	}
 }
 

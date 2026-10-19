@@ -114,8 +114,6 @@ func main() {
 	cartHandler := cartitems.NewHandler(cartService)
 
 	orderRepo := order.NewRepository(db)
-	orderService := order.NewService(orderRepo, db)
-	orderHandler := order.NewHandler(orderService)
 
 	emailVerificationRepo := auth.NewEmailVerificationRepository(db)
 	refreshTokenRepo := auth.NewRefreshTokenRepository(db)
@@ -138,6 +136,16 @@ func main() {
 		cfg.Biteship.Couriers,
 	)
 	shippingHandler := shipping.NewHandler(shippingService)
+
+	orderService := order.NewService(
+		orderRepo,
+		db,
+		cartService,
+		inventoryItemRepo,
+		productVariantRepo,
+		shippingService,
+	)
+	orderHandler := order.NewHandler(orderService)
 
 	authSvc := auth.NewService(
 		userRepo,
