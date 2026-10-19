@@ -24,6 +24,16 @@ type InventoryRepository interface {
 	UpdateQuantity(ctx context.Context, id uuid.UUID, quantity int) error
 
 	FindByVariantIDForUpdate(ctx context.Context, variantID uuid.UUID) (models.InventoryItem, error)
+
+	// Semua operasi stok di bawah wajib dipanggil dalam satu transaksi
+	// (database.InjectTx) agar atomic per order. RowsAffected == 0
+	// dipetakan ke ErrorInsufficientStock.
+
+	ReserveStock(ctx context.Context, variantID uuid.UUID, qty int) error
+
+	FinalizeReservation(ctx context.Context, variantID uuid.UUID, qty int) error
+
+	ReleaseReservation(ctx context.Context, variantID uuid.UUID, qty int) error
 }
 
 type inventoryRepository struct {
@@ -138,4 +148,92 @@ func (r *inventoryRepository) FindByVariantIDForUpdate(ctx context.Context, vari
 	}
 
 	return item, nil
+}
+
+func (r *inventoryRepository) ReserveStock(ctx context.Context, variantID uuid.UUID, qty int) error {
+
+	db := database.GetDB(ctx, r.db).WithContext(ctx)
+
+	result := db.Model(&models.InventoryItem{}).
+		Where(
+			"product_variant_id = ? AND quantity - reserved_quantity >= ?",
+			variantID,
+			qty,
+		).
+		Update("reserved_quantity", gorm.Expr("reserved_quantity + ?", qty))
+
+	if result.Error != nil {
+		return fmt.Errorf("reserving stock for variant %s:%w", variantID, result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return fmt.Errorf(
+			"%w: variant %s, requested %d",
+			ErrorInsufficientStock,
+			variantID,
+			qty,
+		)
+	}
+
+	return nil
+}
+
+func (r *inventoryRepository) FinalizeReservation(ctx context.Context, variantID uuid.UUID, qty int) error {
+
+	db := database.GetDB(ctx, r.db).WithContext(ctx)
+
+	result := db.Model(&models.InventoryItem{}).
+		Where(
+			"product_variant_id = ? AND quantity >= ? AND reserved_quantity >= ?",
+			variantID,
+			qty,
+			qty,
+		).
+		Updates(map[string]any{
+			"quantity":          gorm.Expr("quantity - ?", qty),
+			"reserved_quantity": gorm.Expr("reserved_quantity - ?", qty),
+		})
+
+	if result.Error != nil {
+		return fmt.Errorf("finalizing reservation for variant %s:%w", variantID, result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return fmt.Errorf(
+			"%w: variant %s, requested %d",
+			ErrorInsufficientStock,
+			variantID,
+			qty,
+		)
+	}
+
+	return nil
+}
+
+func (r *inventoryRepository) ReleaseReservation(ctx context.Context, variantID uuid.UUID, qty int) error {
+
+	db := database.GetDB(ctx, r.db).WithContext(ctx)
+
+	result := db.Model(&models.InventoryItem{}).
+		Where(
+			"product_variant_id = ? AND reserved_quantity >= ?",
+			variantID,
+			qty,
+		).
+		Update("reserved_quantity", gorm.Expr("reserved_quantity - ?", qty))
+
+	if result.Error != nil {
+		return fmt.Errorf("releasing reservation for variant %s:%w", variantID, result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return fmt.Errorf(
+			"%w: variant %s, requested %d",
+			ErrorInsufficientStock,
+			variantID,
+			qty,
+		)
+	}
+
+	return nil
 }

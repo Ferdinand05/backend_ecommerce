@@ -3,6 +3,7 @@ package inventory
 import (
 	"context"
 	"errors"
+	"ferdinand/ecommerce/database"
 	"ferdinand/ecommerce/internal/models"
 	"fmt"
 	"os"
@@ -115,6 +116,23 @@ func seedInventory(t *testing.T, db *gorm.DB, variantID uuid.UUID, quantity int)
 		ID:               uuid.New(),
 		ProductVariantID: variantID,
 		Quantity:         quantity,
+	}
+
+	if err := db.Create(&item).Error; err != nil {
+		t.Fatalf("failed to seed inventory item: %v", err)
+	}
+
+	return item
+}
+
+func seedInventoryReserved(t *testing.T, db *gorm.DB, variantID uuid.UUID, quantity, reserved int) models.InventoryItem {
+	t.Helper()
+
+	item := models.InventoryItem{
+		ID:               uuid.New(),
+		ProductVariantID: variantID,
+		Quantity:         quantity,
+		ReservedQuantity: reserved,
 	}
 
 	if err := db.Create(&item).Error; err != nil {
@@ -285,6 +303,169 @@ func TestInventoryRepositoryFindByVariantIDForUpdate(t *testing.T) {
 	_, err = repo.FindByVariantIDForUpdate(context.Background(), uuid.New())
 	if !errors.Is(err, ErrorInventoryNotFound) {
 		t.Fatalf("FindByVariantIDForUpdate() error = %v, want %v", err, ErrorInventoryNotFound)
+	}
+}
+
+func TestInventoryRepositoryReserveStock(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewInventoryRepository(db)
+
+	category := seedCategory(t, db, "fashion", "fashion")
+	product := seedProduct(t, db, category.ID, "kaos", "kaos")
+	variant := seedVariant(t, db, product.ID, "KAOS-001", "M")
+	seedInventoryReserved(t, db, variant.ID, 5, 1)
+
+	ctx := database.InjectTx(context.Background(), db)
+
+	if err := repo.ReserveStock(ctx, variant.ID, 3); err != nil {
+		t.Fatalf("ReserveStock() error = %v", err)
+	}
+
+	item, err := repo.FindByVariantID(ctx, variant.ID)
+	if err != nil {
+		t.Fatalf("FindByVariantID() error = %v", err)
+	}
+
+	// quantity tetap, reserved naik.
+	if item.Quantity != 5 || item.ReservedQuantity != 4 {
+		t.Fatalf("after ReserveStock() = qty %d, reserved %d; want 5, 4", item.Quantity, item.ReservedQuantity)
+	}
+}
+
+func TestInventoryRepositoryReserveStockInsufficient(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewInventoryRepository(db)
+
+	category := seedCategory(t, db, "fashion", "fashion-2")
+	product := seedProduct(t, db, category.ID, "kaos", "kaos-2")
+	variant := seedVariant(t, db, product.ID, "KAOS-002", "L")
+	seedInventoryReserved(t, db, variant.ID, 5, 4)
+
+	ctx := database.InjectTx(context.Background(), db)
+
+	// Tersedia hanya 1, minta 2.
+	err := repo.ReserveStock(ctx, variant.ID, 2)
+	if !errors.Is(err, ErrorInsufficientStock) {
+		t.Fatalf("ReserveStock() error = %v, want %v", err, ErrorInsufficientStock)
+	}
+
+	item, err := repo.FindByVariantID(ctx, variant.ID)
+	if err != nil {
+		t.Fatalf("FindByVariantID() error = %v", err)
+	}
+
+	if item.Quantity != 5 || item.ReservedQuantity != 4 {
+		t.Fatalf("failed reserve changed data = qty %d, reserved %d; want 5, 4", item.Quantity, item.ReservedQuantity)
+	}
+}
+
+func TestInventoryRepositoryFinalizeReservation(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewInventoryRepository(db)
+
+	category := seedCategory(t, db, "gadget", "gadget")
+	product := seedProduct(t, db, category.ID, "phone", "phone")
+	variant := seedVariant(t, db, product.ID, "PHONE-001", "128GB")
+	seedInventoryReserved(t, db, variant.ID, 5, 3)
+
+	ctx := database.InjectTx(context.Background(), db)
+
+	if err := repo.FinalizeReservation(ctx, variant.ID, 2); err != nil {
+		t.Fatalf("FinalizeReservation() error = %v", err)
+	}
+
+	item, err := repo.FindByVariantID(ctx, variant.ID)
+	if err != nil {
+		t.Fatalf("FindByVariantID() error = %v", err)
+	}
+
+	// Kedua kolom turun dalam satu UPDATE.
+	if item.Quantity != 3 || item.ReservedQuantity != 1 {
+		t.Fatalf("after FinalizeReservation() = qty %d, reserved %d; want 3, 1", item.Quantity, item.ReservedQuantity)
+	}
+}
+
+func TestInventoryRepositoryFinalizeReservationInsufficient(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewInventoryRepository(db)
+
+	category := seedCategory(t, db, "gadget", "gadget-2")
+	product := seedProduct(t, db, category.ID, "phone", "phone-2")
+	variant := seedVariant(t, db, product.ID, "PHONE-002", "256GB")
+	seedInventoryReserved(t, db, variant.ID, 5, 1)
+
+	ctx := database.InjectTx(context.Background(), db)
+
+	// Reservasi hanya 1, minta finalize 2.
+	err := repo.FinalizeReservation(ctx, variant.ID, 2)
+	if !errors.Is(err, ErrorInsufficientStock) {
+		t.Fatalf("FinalizeReservation() error = %v, want %v", err, ErrorInsufficientStock)
+	}
+
+	item, err := repo.FindByVariantID(ctx, variant.ID)
+	if err != nil {
+		t.Fatalf("FindByVariantID() error = %v", err)
+	}
+
+	if item.Quantity != 5 || item.ReservedQuantity != 1 {
+		t.Fatalf("failed finalize changed data = qty %d, reserved %d; want 5, 1", item.Quantity, item.ReservedQuantity)
+	}
+}
+
+func TestInventoryRepositoryReleaseReservation(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewInventoryRepository(db)
+
+	category := seedCategory(t, db, "book", "book")
+	product := seedProduct(t, db, category.ID, "novel", "novel")
+	variant := seedVariant(t, db, product.ID, "NOVEL-001", " paperback")
+	seedInventoryReserved(t, db, variant.ID, 5, 3)
+
+	ctx := database.InjectTx(context.Background(), db)
+
+	if err := repo.ReleaseReservation(ctx, variant.ID, 2); err != nil {
+		t.Fatalf("ReleaseReservation() error = %v", err)
+	}
+
+	item, err := repo.FindByVariantID(ctx, variant.ID)
+	if err != nil {
+		t.Fatalf("FindByVariantID() error = %v", err)
+	}
+
+	// quantity tetap, reserved turun.
+	if item.Quantity != 5 || item.ReservedQuantity != 1 {
+		t.Fatalf("after ReleaseReservation() = qty %d, reserved %d; want 5, 1", item.Quantity, item.ReservedQuantity)
+	}
+}
+
+func TestInventoryRepositoryReleaseReservationTwice(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewInventoryRepository(db)
+
+	category := seedCategory(t, db, "book", "book-2")
+	product := seedProduct(t, db, category.ID, "novel", "novel-2")
+	variant := seedVariant(t, db, product.ID, "NOVEL-002", "hardcover")
+	seedInventoryReserved(t, db, variant.ID, 5, 2)
+
+	ctx := database.InjectTx(context.Background(), db)
+
+	if err := repo.ReleaseReservation(ctx, variant.ID, 2); err != nil {
+		t.Fatalf("first ReleaseReservation() error = %v", err)
+	}
+
+	// Release kedua untuk order sama: reservasi sudah 0, harus gagal.
+	err := repo.ReleaseReservation(ctx, variant.ID, 2)
+	if !errors.Is(err, ErrorInsufficientStock) {
+		t.Fatalf("second ReleaseReservation() error = %v, want %v", err, ErrorInsufficientStock)
+	}
+
+	item, err := repo.FindByVariantID(ctx, variant.ID)
+	if err != nil {
+		t.Fatalf("FindByVariantID() error = %v", err)
+	}
+
+	if item.ReservedQuantity != 0 {
+		t.Fatalf("reserved after double release = %d, want 0", item.ReservedQuantity)
 	}
 }
 

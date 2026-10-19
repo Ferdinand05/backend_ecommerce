@@ -75,6 +75,18 @@ func (f *fakeInventoryRepo) FindByVariantIDForUpdate(ctx context.Context, varian
 	return models.InventoryItem{}, errors.New("not implemented")
 }
 
+func (f *fakeInventoryRepo) ReserveStock(ctx context.Context, variantID uuid.UUID, qty int) error {
+	return errors.New("not implemented")
+}
+
+func (f *fakeInventoryRepo) FinalizeReservation(ctx context.Context, variantID uuid.UUID, qty int) error {
+	return errors.New("not implemented")
+}
+
+func (f *fakeInventoryRepo) ReleaseReservation(ctx context.Context, variantID uuid.UUID, qty int) error {
+	return errors.New("not implemented")
+}
+
 type fakeVariantRepo struct {
 	variants []models.ProductVariant
 	err      error
@@ -280,6 +292,46 @@ func TestPreviewVariantNotAvailable(t *testing.T) {
 				t.Fatalf("error = %v, want ErrVariantNotAvailable", err)
 			}
 		})
+	}
+}
+
+func TestPreviewAvailableStockSubtractsReserved(t *testing.T) {
+	cart, variantID := cartWithSingleItem()
+
+	svc := newTestService(
+		&fakeCartService{cart: cart},
+		&fakeInventoryRepo{item: models.InventoryItem{Quantity: 5, ReservedQuantity: 3}},
+		&fakeVariantRepo{variants: []models.ProductVariant{
+			{ID: variantID, IsActive: true, WeightGrams: 250},
+		}},
+	)
+
+	got, err := svc.Preview(context.Background(), uuid.New())
+	if err != nil {
+		t.Fatalf("Preview() error = %v", err)
+	}
+
+	// 5 fisik - 3 reservasi = 2 tersedia; qty cart 2 masih muat.
+	if got.Items[0].AvailableStock != 2 {
+		t.Fatalf("available stock = %d, want 2 (fisik - reservasi)", got.Items[0].AvailableStock)
+	}
+}
+
+func TestPreviewFailsWhenReservedEatsStock(t *testing.T) {
+	_, variantID := cartWithSingleItem()
+
+	svc := newTestService(
+		&fakeCartService{cart: mustCart()},
+		&fakeInventoryRepo{item: models.InventoryItem{Quantity: 5, ReservedQuantity: 4}},
+		&fakeVariantRepo{variants: []models.ProductVariant{
+			{ID: variantID, IsActive: true, WeightGrams: 250},
+		}},
+	)
+
+	// Fisik 5 cukup, tapi tersedia hanya 1 < qty 2.
+	_, err := svc.Preview(context.Background(), uuid.New())
+	if !errors.Is(err, ErrInsufficientStock) {
+		t.Fatalf("error = %v, want ErrInsufficientStock", err)
 	}
 }
 

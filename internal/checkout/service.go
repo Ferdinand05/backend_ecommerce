@@ -111,13 +111,16 @@ func (s *service) Preview(
 			)
 		}
 
-		if inventoryItem.Quantity < item.Quantity {
+		// Stok fisik dikurangi yang sedang direservasi order lain.
+		availableStock := inventoryItem.Quantity - inventoryItem.ReservedQuantity
+
+		if availableStock < item.Quantity {
 			return PreviewResponse{}, fmt.Errorf(
 				"%w: variant %s, requested %d, available %d",
 				ErrInsufficientStock,
 				item.ProductVariantID,
 				item.Quantity,
-				inventoryItem.Quantity,
+				availableStock,
 			)
 		}
 
@@ -137,7 +140,7 @@ func (s *service) Preview(
 			UnitPrice:        unitPrice,
 			Subtotal:         itemSubtotal,
 			WeightGrams:      variant.WeightGrams,
-			AvailableStock:   inventoryItem.Quantity,
+			AvailableStock:   availableStock,
 		})
 	}
 
