@@ -172,7 +172,7 @@ func TestPreviewSuccess(t *testing.T) {
 			Price:       decimal.NewFromInt(88000),
 			IsActive:    true,
 			WeightGrams: 250,
-			Product:     models.Product{Name: "Kaos Premium"},
+			Product:     models.Product{Name: "Kaos Premium", IsActive: true},
 		},
 	}}
 	svc := newTestService(cartSvc, invSvc, variantSvc)
@@ -231,8 +231,8 @@ func TestPreviewMultipleItemsSumsSubtotal(t *testing.T) {
 	}}
 	invSvc := &fakeInventoryRepo{item: models.InventoryItem{Quantity: 10}}
 	variantSvc := &fakeVariantRepo{variants: []models.ProductVariant{
-		{ID: variantA, IsActive: true, WeightGrams: 100, Price: decimal.NewFromInt(50000)},
-		{ID: variantB, IsActive: true, WeightGrams: 200, Price: decimal.NewFromInt(30000)},
+		{ID: variantA, IsActive: true, WeightGrams: 100, Price: decimal.NewFromInt(50000), Product: models.Product{IsActive: true}},
+		{ID: variantB, IsActive: true, WeightGrams: 200, Price: decimal.NewFromInt(30000), Product: models.Product{IsActive: true}},
 	}}
 	svc := newTestService(cartSvc, invSvc, variantSvc)
 
@@ -277,6 +277,12 @@ func TestPreviewVariantNotAvailable(t *testing.T) {
 				{ID: variantID, IsActive: false, WeightGrams: 250},
 			},
 		},
+		{
+			name: "produk induk nonaktif",
+			variants: []models.ProductVariant{
+				{ID: variantID, IsActive: true, WeightGrams: 250, Product: models.Product{IsActive: false}},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -302,7 +308,7 @@ func TestPreviewAvailableStockSubtractsReserved(t *testing.T) {
 		&fakeCartService{cart: cart},
 		&fakeInventoryRepo{item: models.InventoryItem{Quantity: 5, ReservedQuantity: 3}},
 		&fakeVariantRepo{variants: []models.ProductVariant{
-			{ID: variantID, IsActive: true, WeightGrams: 250},
+			{ID: variantID, IsActive: true, WeightGrams: 250, Product: models.Product{IsActive: true}},
 		}},
 	)
 
@@ -324,7 +330,7 @@ func TestPreviewFailsWhenReservedEatsStock(t *testing.T) {
 		&fakeCartService{cart: mustCart()},
 		&fakeInventoryRepo{item: models.InventoryItem{Quantity: 5, ReservedQuantity: 4}},
 		&fakeVariantRepo{variants: []models.ProductVariant{
-			{ID: variantID, IsActive: true, WeightGrams: 250},
+			{ID: variantID, IsActive: true, WeightGrams: 250, Product: models.Product{IsActive: true}},
 		}},
 	)
 
@@ -358,7 +364,7 @@ func TestPreviewInsufficientStock(t *testing.T) {
 				&fakeCartService{cart: mustCart()},
 				tt.inv,
 				&fakeVariantRepo{variants: []models.ProductVariant{
-					{ID: variantID, IsActive: true, WeightGrams: 250},
+					{ID: variantID, IsActive: true, WeightGrams: 250, Product: models.Product{IsActive: true}},
 				}},
 			)
 
@@ -399,7 +405,7 @@ func TestPreviewDatabaseFailurePassesThrough(t *testing.T) {
 				&fakeCartService{cart: mustCart()},
 				&fakeInventoryRepo{err: dbErr},
 				&fakeVariantRepo{variants: []models.ProductVariant{
-					{ID: uuid.MustParse("11111111-1111-1111-1111-111111111111"), IsActive: true},
+					{ID: uuid.MustParse("11111111-1111-1111-1111-111111111111"), IsActive: true, Product: models.Product{IsActive: true}},
 				}},
 			),
 		},
