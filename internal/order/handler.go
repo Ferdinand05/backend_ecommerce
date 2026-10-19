@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"ferdinand/ecommerce/internal/inventory"
 	"ferdinand/ecommerce/internal/models"
 
 	"github.com/gin-gonic/gin"
@@ -30,6 +31,65 @@ func NewHandler(service Service) *Handler {
 	return &Handler{
 		service: service,
 	}
+}
+
+// POST /me/orders
+func (h *Handler) CreateOrder(c *gin.Context) {
+
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+
+	var req CreateOrderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	// CreateOrder memanggil Biteship + transaksi DB; beri waktu lebih
+	// besar dari endpoint read-only.
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
+	defer cancel()
+
+	order, err := h.service.CreateOrder(ctx, userID, req)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrorEmptyCart),
+			errors.Is(err, ErrorInvalidOrderInput):
+			slog.Warn("order.create_rejected", "user_id", userID, "error", err)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": err.Error(),
+			})
+
+		case errors.Is(err, ErrorVariantUnavailable),
+			errors.Is(err, ErrorShippingRateNotFound):
+			slog.Warn("order.create_rejected", "user_id", userID, "error", err)
+			c.JSON(http.StatusUnprocessableEntity, gin.H{
+				"error": err.Error(),
+			})
+
+		case errors.Is(err, inventory.ErrorInsufficientStock):
+			slog.Warn("order.create_rejected", "user_id", userID, "error", err)
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "insufficient stock for one or more items",
+			})
+
+		default:
+			slog.Error("order.create", "user_id", userID, "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "internal server error",
+			})
+		}
+
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"order": toOrderDetailResponse(order),
+	})
 }
 
 // GET /me/orders
@@ -390,8 +450,15 @@ func toOrderResponse(order models.Order) OrderResponse {
 		ShippingCost:   order.ShippingCost,
 		DiscountAmount: order.DiscountAmount,
 		TotalAmount:    order.TotalAmount,
-		CreatedAt:      order.CreatedAt,
-		UpdatedAt:      order.UpdatedAt,
+
+		CourierCode:        order.CourierCode,
+		CourierName:        order.CourierName,
+		CourierServiceCode: order.CourierServiceCode,
+		CourierServiceName: order.CourierServiceName,
+		PaymentExpiresAt:   order.PaymentExpiresAt,
+
+		CreatedAt: order.CreatedAt,
+		UpdatedAt: order.UpdatedAt,
 	}
 }
 
@@ -428,13 +495,20 @@ func toOrderDetailResponse(order models.Order) OrderDetailResponse {
 	}
 
 	return OrderDetailResponse{
-		ID:              order.ID,
-		OrderNumber:     order.OrderNumber,
-		Status:          order.Status,
-		Subtotal:        order.Subtotal,
-		ShippingCost:    order.ShippingCost,
-		DiscountAmount:  order.DiscountAmount,
-		TotalAmount:     order.TotalAmount,
+		ID:             order.ID,
+		OrderNumber:    order.OrderNumber,
+		Status:         order.Status,
+		Subtotal:       order.Subtotal,
+		ShippingCost:   order.ShippingCost,
+		DiscountAmount: order.DiscountAmount,
+		TotalAmount:    order.TotalAmount,
+
+		CourierCode:        order.CourierCode,
+		CourierName:        order.CourierName,
+		CourierServiceCode: order.CourierServiceCode,
+		CourierServiceName: order.CourierServiceName,
+		PaymentExpiresAt:   order.PaymentExpiresAt,
+
 		Items:           items,
 		Address:         address,
 		StatusHistories: histories,
