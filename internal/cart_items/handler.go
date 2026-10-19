@@ -156,6 +156,28 @@ func (h *Handler) RemoveItem(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// ClearCart mengosongkan keranjang user. DELETE /cart
+func (h *Handler) ClearCart(c *gin.Context) {
+
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	if err := h.service.ClearCart(ctx, userID); err != nil {
+		slog.Error("cart.clear_cart", "user_id", userID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "internal server error",
+		})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
 // respondItemError memetakan error domain ke status HTTP yang sama untuk
 // seluruh endpoint item.
 func (h *Handler) respondItemError(c *gin.Context, event string, userID uuid.UUID, err error) {

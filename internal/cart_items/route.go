@@ -9,6 +9,7 @@ import (
 func RegisterRoutes(cart *gin.RouterGroup, handler *Handler) {
 
 	cart.GET("", handler.GetCart)
+	cart.DELETE("", handler.ClearCart)
 	cart.POST("/items", handler.AddItem)
 	cart.POST("/items/:item_id/increase", handler.IncreaseItem)
 	cart.POST("/items/:item_id/decrease", handler.DecreaseItem)

@@ -42,6 +42,10 @@ func (f *fakeCartService) RemoveItem(ctx context.Context, userID uuid.UUID, item
 	return errors.New("not implemented")
 }
 
+func (f *fakeCartService) ClearCart(ctx context.Context, userID uuid.UUID) error {
+	return errors.New("not implemented")
+}
+
 type fakeInventoryRepo struct {
 	item          models.InventoryItem
 	err           error

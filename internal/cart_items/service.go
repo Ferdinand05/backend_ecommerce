@@ -39,6 +39,9 @@ type Service interface {
 		userID uuid.UUID,
 		itemID uuid.UUID,
 	) error
+
+	// ClearCart mengosongkan seluruh item keranjang user.
+	ClearCart(ctx context.Context, userID uuid.UUID) error
 }
 
 type service struct {
@@ -146,6 +149,15 @@ func (s *service) RemoveItem(ctx context.Context, userID uuid.UUID, itemID uuid.
 	}
 
 	return s.repo.Delete(ctx, itemID)
+}
+
+// ClearCart mengosongkan seluruh item keranjang user.
+//
+// ponytail: DeleteAllByUserID adalah satu DELETE statement — sudah atomik
+// dan tx-aware via database.GetDB. Bungkus db.Transaction hanya jika
+// clear nanti juga menulis data lain (mis. audit/movement).
+func (s *service) ClearCart(ctx context.Context, userID uuid.UUID) error {
+	return s.repo.DeleteAllByUserID(ctx, userID)
 }
 
 func (s *service) ownedCartItem(ctx context.Context, userID uuid.UUID, itemID uuid.UUID) (models.CartItem, error) {
