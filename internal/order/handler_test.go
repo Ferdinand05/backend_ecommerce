@@ -8,7 +8,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"ferdinand/ecommerce/internal/inventory"
 	"ferdinand/ecommerce/internal/middleware"
 	"ferdinand/ecommerce/internal/models"
 
@@ -37,6 +39,17 @@ type fakeService struct {
 
 	updateStatusRes models.Order
 	updateStatusErr error
+
+	createOrderRes  models.Order
+	createOrderErr  error
+	createOrderReq  CreateOrderRequest
+	createOrderUser uuid.UUID
+}
+
+func (f *fakeService) CreateOrder(ctx context.Context, userID uuid.UUID, req CreateOrderRequest) (models.Order, error) {
+	f.createOrderReq = req
+	f.createOrderUser = userID
+	return f.createOrderRes, f.createOrderErr
 }
 
 func (f *fakeService) FindMyOrders(ctx context.Context, userID uuid.UUID, page int, pageSize int) (OrderListResult, error) {
@@ -350,6 +363,94 @@ func TestUpdateStatusErrors(t *testing.T) {
 
 			w := orderRequest(t, newOrderRouter(svc), http.MethodPatch,
 				"/api/v1/admin/orders/"+uuid.New().String()+"/status", tt.body, uuid.New(), "admin")
+
+			if w.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d", w.Code, tt.wantStatus)
+			}
+		})
+	}
+}
+
+const createOrderBody = `{
+	"recipient_name": "Budi",
+	"phone": "081234567890",
+	"address": "Jl. Mawar 1",
+	"city": "Bandung",
+	"province": "Jawa Barat",
+	"postal_code": "40123",
+	"destination_area_id": "IDNP3IDNC445",
+	"destination_area_name": "Coblong, Bandung",
+	"courier_code": "jne",
+	"courier_service_code": "REG"
+}`
+
+func TestHandlerCreateOrder(t *testing.T) {
+	svc := &fakeService{createOrderRes: models.Order{
+		ID:                 uuid.New(),
+		OrderNumber:        "ORD-20260101-ABCD1234",
+		Status:             "PENDING",
+		Subtotal:           decimal.NewFromInt(100000),
+		ShippingCost:       decimal.NewFromInt(20000),
+		DiscountAmount:     decimal.Zero,
+		TotalAmount:        decimal.NewFromInt(120000),
+		CourierCode:        "jne",
+		CourierName:        "JNE",
+		CourierServiceCode: "REG",
+		CourierServiceName: "Regular Service",
+		PaymentExpiresAt:   func() *time.Time { t := time.Now().Add(30 * time.Minute); return &t }(),
+	}}
+
+	w := orderRequest(t, newOrderRouter(svc), http.MethodPost, "/api/v1/me/orders", createOrderBody, uuid.New(), "customer")
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d, body = %s", w.Code, http.StatusCreated, w.Body.String())
+	}
+
+	var envelope orderEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+
+	if envelope.Order.OrderNumber != "ORD-20260101-ABCD1234" {
+		t.Fatalf("order number = %q, want ORD-20260101-ABCD1234", envelope.Order.OrderNumber)
+	}
+
+	if envelope.Order.CourierServiceName != "Regular Service" {
+		t.Fatalf("courier service name = %q, want Regular Service", envelope.Order.CourierServiceName)
+	}
+
+	if envelope.Order.PaymentExpiresAt == nil {
+		t.Fatal("payment_expires_at must not be nil for a pending order")
+	}
+}
+
+func TestHandlerCreateOrderInvalidBody(t *testing.T) {
+	w := orderRequest(t, newOrderRouter(&fakeService{}), http.MethodPost, "/api/v1/me/orders", `{}`, uuid.New(), "customer")
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandlerCreateOrderErrors(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        error
+		wantStatus int
+	}{
+		{name: "cart kosong", err: ErrorEmptyCart, wantStatus: http.StatusBadRequest},
+		{name: "input tidak valid", err: ErrorInvalidOrderInput, wantStatus: http.StatusBadRequest},
+		{name: "varian tidak tersedia", err: ErrorVariantUnavailable, wantStatus: http.StatusUnprocessableEntity},
+		{name: "layanan kurir tidak ada", err: ErrorShippingRateNotFound, wantStatus: http.StatusUnprocessableEntity},
+		{name: "stok kurang", err: inventory.ErrorInsufficientStock, wantStatus: http.StatusConflict},
+		{name: "error tak dikenal", err: errors.New("boom"), wantStatus: http.StatusInternalServerError},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &fakeService{createOrderErr: tt.err}
+
+			w := orderRequest(t, newOrderRouter(svc), http.MethodPost, "/api/v1/me/orders", createOrderBody, uuid.New(), "customer")
 
 			if w.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d", w.Code, tt.wantStatus)
