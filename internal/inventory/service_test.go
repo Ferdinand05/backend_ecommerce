@@ -61,6 +61,18 @@ func (f *fakeItemRepo) FindByVariantIDForUpdate(ctx context.Context, variantID u
 	return f.forUpdateRes, f.forUpdateErr
 }
 
+func (f *fakeItemRepo) ReserveStock(ctx context.Context, variantID uuid.UUID, qty int) error {
+	return errors.New("not implemented")
+}
+
+func (f *fakeItemRepo) FinalizeReservation(ctx context.Context, variantID uuid.UUID, qty int) error {
+	return errors.New("not implemented")
+}
+
+func (f *fakeItemRepo) ReleaseReservation(ctx context.Context, variantID uuid.UUID, qty int) error {
+	return errors.New("not implemented")
+}
+
 type fakeMovementRepo struct {
 	createErr error
 	createArg models.StockMovement
