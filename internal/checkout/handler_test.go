@@ -33,9 +33,9 @@ func newCheckoutRouter(svc Service, withAuth bool) *gin.Engine {
 	handler := NewHandler(svc)
 
 	if withAuth {
-		// Simulasi middleware auth yang sudah set userID.
+		// Simulasi middleware auth yang sudah set userID (string, seperti claims.Subject).
 		r.Use(func(c *gin.Context) {
-			c.Set("userID", uuid.MustParse("99999999-9999-9999-9999-999999999999"))
+			c.Set("userID", "99999999-9999-9999-9999-999999999999")
 			c.Next()
 		})
 	}
