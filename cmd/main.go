@@ -12,6 +12,8 @@ import (
 	"ferdinand/ecommerce/internal/inventory"
 	"ferdinand/ecommerce/internal/mail"
 	"ferdinand/ecommerce/internal/order"
+	"ferdinand/ecommerce/internal/payment"
+	paymentxendit "ferdinand/ecommerce/internal/payment/xendit"
 	"ferdinand/ecommerce/internal/product"
 	productimage "ferdinand/ecommerce/internal/product_image"
 	productvariant "ferdinand/ecommerce/internal/product_variant"
@@ -161,6 +163,12 @@ func main() {
 
 	checkoutService := checkout.NewService(cartService, inventoryItemRepo, productVariantRepo)
 	checkoutHandler := checkout.NewHandler(checkoutService)
+
+	xenditClient := paymentxendit.NewClient(cfg.Xendit.ApiKey)
+	paymentRepo := payment.NewRepository(db)
+	paymentService := payment.NewService(db, orderRepo, paymentRepo, xenditClient)
+	// Handler payment menyusul fase webhook; servis belum diregistrasi ke router.
+	_ = paymentService
 
 	handlers := router.RouteHandlers{
 		UserHandler:           userHandler,
