@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	"ferdinand/ecommerce/internal/inventory"
 	"ferdinand/ecommerce/internal/models"
 	"ferdinand/ecommerce/internal/order"
 	xenditclient "ferdinand/ecommerce/internal/payment/xendit"
@@ -22,31 +23,44 @@ type Service interface {
 		userID uuid.UUID,
 		orderID uuid.UUID,
 	) (CreatePaymentResult, error)
+
+	HandleInvoiceCallback(
+		ctx context.Context,
+		cb InvoiceCallback,
+	) error
 }
 
 type service struct {
-	// db dipakai fase webhook berikutnya: tx FinalizeReservation.
-	db          *gorm.DB
-	orderRepo   orderReader
-	paymentRepo Repository
-	xendit      xenditclient.Client
+	// db dipakai tx webhook: finalizePaidCallback.
+	db            *gorm.DB
+	orderRepo     orderReader
+	paymentRepo   Repository
+	inventoryRepo inventory.InventoryRepository
+	xendit        xenditclient.Client
 }
 
+// orderReader diambil dari method yang tersedia di order.Repository;
+// webhook butuh akses ber-transaction ke order.
 type orderReader interface {
 	FindByID(ctx context.Context, orderID uuid.UUID) (models.Order, error)
+	FindByIDForUpdate(ctx context.Context, orderID uuid.UUID) (models.Order, error)
+	UpdateStatus(ctx context.Context, orderID uuid.UUID, status string) error
+	CreateStatusHistory(ctx context.Context, history *models.OrderStatusHistory) error
 }
 
 func NewService(
 	db *gorm.DB,
 	orderRepo orderReader,
 	paymentRepo Repository,
+	inventoryRepo inventory.InventoryRepository,
 	xendit xenditclient.Client,
 ) Service {
 	return &service{
-		db:          db,
-		orderRepo:   orderRepo,
-		paymentRepo: paymentRepo,
-		xendit:      xendit,
+		db:            db,
+		orderRepo:     orderRepo,
+		paymentRepo:   paymentRepo,
+		inventoryRepo: inventoryRepo,
+		xendit:        xendit,
 	}
 }
 

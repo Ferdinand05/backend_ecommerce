@@ -77,6 +77,7 @@ func (r *repository) FindByIDForUpdate(ctx context.Context, orderID uuid.UUID) (
 
 	err := db.
 		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Preload("Items").
 		First(&order, orderID).Error
 	if err != nil {
 

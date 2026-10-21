@@ -8,5 +8,6 @@ var (
 	ErrOrderNotPayable       = errors.New("order is not payable")
 	ErrOrderPaymentExpired   = errors.New("order payment period has expired")
 	ErrInvalidPayment        = errors.New("invalid payment")
+	ErrAmountMismatch        = errors.New("callback amount does not match payment")
 	ErrPaymentStateAmbiguous = errors.New("payment state could not be verified")
 )
