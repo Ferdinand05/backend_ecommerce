@@ -7,13 +7,13 @@ import (
 )
 
 type CreatePaymentResult struct {
-	PaymentID   uuid.UUID
-	OrderID     uuid.UUID
-	Status      string
-	Amount      string
-	Currency    string
-	CheckoutURL string
-	ExpiresAt   *time.Time
+	PaymentID   uuid.UUID  `json:"payment_id"`
+	OrderID     uuid.UUID  `json:"order_id"`
+	Status      string     `json:"status"`
+	Amount      string     `json:"amount"`
+	Currency    string     `json:"currency"`
+	CheckoutURL string     `json:"checkout_url"`
+	ExpiresAt   *time.Time `json:"expires_at"`
 }
 
 // InvoiceCallback adalah payload callback invoice Xendit. Hanya field

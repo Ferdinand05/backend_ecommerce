@@ -51,7 +51,6 @@ func New(handlers RouteHandlers, jwtService *userJWT.JWTService) *gin.Engine {
 	productvariant.RegisterRoutes(v1, handlers.ProductVariantHandler)
 	productimage.RegisterRoutes(v1, handlers.ProductImageHandler)
 	inventory.RegisterRoutes(v1, handlers.InventoryHandler)
-	payment.RegisterRoutes(v1, handlers.PaymentHandler)
 
 	// authenticated
 	shippingRG := v1.Group("/shipping", middleware.AuthMiddleware(jwtService))
@@ -61,6 +60,7 @@ func New(handlers RouteHandlers, jwtService *userJWT.JWTService) *gin.Engine {
 	checkoutRG := v1.Group("/checkout", middleware.AuthMiddleware(jwtService))
 	checkout.RegisterRoutes(checkoutRG, handlers.CheckoutHandler)
 	me := v1.Group("/me", middleware.AuthMiddleware(jwtService))
+	payment.RegisterRoutes(v1, me, handlers.PaymentHandler)
 	admin := v1.Group("/admin", middleware.AuthMiddleware(jwtService), middleware.RequireRole("admin")) // admin
 	order.RegisterRoutes(me, admin, handlers.OrderHandler)
 

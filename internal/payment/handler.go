@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type Handler struct {
@@ -71,4 +72,95 @@ func (h *Handler) HandleInvoiceCallback(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// currentUserID mengambil userID yang dipasang AuthMiddleware.
+func currentUserID(c *gin.Context) (uuid.UUID, bool) {
+
+	raw, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "unauthorized",
+		})
+		return uuid.Nil, false
+	}
+
+	value, ok := raw.(string)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "unauthorized",
+		})
+		return uuid.Nil, false
+	}
+
+	userID, err := uuid.Parse(value)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "unauthorized",
+		})
+		return uuid.Nil, false
+	}
+
+	return userID, true
+}
+
+// POST /me/orders/:order_id/payment
+// Tanpa request body: nominal dan kelayakan diambil dari database,
+// bukan dari client. Semantik get-or-create: attempt PENDING yang
+// masih hidup dikembalikan apa adanya.
+func (h *Handler) CreatePayment(c *gin.Context) {
+
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+
+	orderID, err := uuid.Parse(c.Param("order_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid order id",
+		})
+		return
+	}
+
+	// Longgar: mencakup pembuatan invoice di API Xendit.
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
+	defer cancel()
+
+	result, err := h.service.CreatePayment(ctx, userID, orderID)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrOrderNotFound):
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "order not found",
+			})
+
+		case errors.Is(err, ErrOrderNotPayable):
+			slog.Warn("payment.create_not_payable", "order_id", orderID, "user_id", userID)
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "order is not payable",
+			})
+
+		case errors.Is(err, ErrOrderPaymentExpired):
+			c.JSON(http.StatusGone, gin.H{
+				"error": "order payment period has expired",
+			})
+
+		case errors.Is(err, ErrPaymentStateAmbiguous):
+			// Status tak bisa diverifikasi; aman untuk dicoba lagi.
+			slog.Error("payment.create_state_ambiguous", "order_id", orderID, "user_id", userID, "error", err)
+			c.JSON(http.StatusBadGateway, gin.H{
+				"error": "payment state could not be verified, please retry",
+			})
+
+		default:
+			slog.Error("payment.create_failed", "order_id", orderID, "user_id", userID, "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "internal server error",
+			})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
 }
