@@ -46,6 +46,11 @@ type BiteshipConfig struct {
 	Couriers     string
 }
 
+type XenditConfig struct {
+	ApiKey       string
+	WebhookToken string
+}
+
 type Config struct {
 	Database DatabaseConfig
 	JWT      JWTConfig
@@ -53,4 +58,5 @@ type Config struct {
 	R2       R2Storage
 	Redis    RedisConfig
 	Biteship BiteshipConfig
+	Xendit   XenditConfig
 }
