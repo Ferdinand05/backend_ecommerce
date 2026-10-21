@@ -19,10 +19,28 @@ import (
 type fakeOrderRepo struct {
 	order models.Order
 	err   error
+
+	histories     []models.OrderStatusHistory
+	updatedStatus string
 }
 
 func (f *fakeOrderRepo) FindByID(ctx context.Context, orderID uuid.UUID) (models.Order, error) {
 	return f.order, f.err
+}
+
+func (f *fakeOrderRepo) FindByIDForUpdate(ctx context.Context, orderID uuid.UUID) (models.Order, error) {
+	return f.order, f.err
+}
+
+func (f *fakeOrderRepo) UpdateStatus(ctx context.Context, orderID uuid.UUID, status string) error {
+	f.updatedStatus = status
+	f.order.Status = status
+	return nil
+}
+
+func (f *fakeOrderRepo) CreateStatusHistory(ctx context.Context, history *models.OrderStatusHistory) error {
+	f.histories = append(f.histories, *history)
+	return nil
 }
 
 type statusUpdate struct {
@@ -39,6 +57,49 @@ type fakePaymentRepo struct {
 	created        []*models.Payment
 	statusUpdates  []statusUpdate
 	invoiceUpdates []*models.Payment
+}
+
+func (f *fakePaymentRepo) FindByIDForUpdate(ctx context.Context, paymentID uuid.UUID) (models.Payment, error) {
+	return f.FindByID(ctx, paymentID)
+}
+
+func (f *fakePaymentRepo) MarkPaid(ctx context.Context, paymentID uuid.UUID, paidAt *time.Time) (bool, error) {
+	p, ok := f.payments[paymentID]
+	if !ok {
+		return false, ErrPaymentNotFound
+	}
+	if p.Status == string(PaymentStatusPaid) {
+		return false, nil
+	}
+	p.Status = string(PaymentStatusPaid)
+	p.PaidAt = paidAt
+	f.payments[paymentID] = p
+	f.statusUpdates = append(f.statusUpdates, statusUpdate{paymentID: paymentID, status: string(PaymentStatusPaid)})
+	return true, nil
+}
+
+func (f *fakePaymentRepo) MarkExpiredPending(ctx context.Context, paymentID uuid.UUID) (bool, error) {
+	p, ok := f.payments[paymentID]
+	if !ok {
+		return false, ErrPaymentNotFound
+	}
+	if p.Status != string(PaymentStatusPending) {
+		return false, nil
+	}
+	p.Status = string(PaymentStatusExpired)
+	f.payments[paymentID] = p
+	f.statusUpdates = append(f.statusUpdates, statusUpdate{paymentID: paymentID, status: string(PaymentStatusExpired)})
+	return true, nil
+}
+
+func (f *fakePaymentRepo) FailOtherPendingByOrderID(ctx context.Context, orderID uuid.UUID, excludePaymentID uuid.UUID) error {
+	for id, p := range f.payments {
+		if p.OrderID == orderID && p.Status == string(PaymentStatusPending) && id != excludePaymentID {
+			p.Status = string(PaymentStatusFailed)
+			f.payments[id] = p
+		}
+	}
+	return nil
 }
 
 func newFakePaymentRepo() *fakePaymentRepo {
@@ -72,6 +133,11 @@ func (f *fakePaymentRepo) FindByExternalID(ctx context.Context, externalID strin
 }
 
 func (f *fakePaymentRepo) FindByProviderInvoiceID(ctx context.Context, invoiceID string) (models.Payment, error) {
+	for _, p := range f.payments {
+		if p.ProviderInvoiceID != nil && *p.ProviderInvoiceID == invoiceID {
+			return p, nil
+		}
+	}
 	return models.Payment{}, ErrPaymentNotFound
 }
 
@@ -177,7 +243,7 @@ func newTestService(ord *models.Order, repo *fakePaymentRepo, xendit *fakeXendit
 	if ord != nil {
 		orderRepo.order = *ord
 	}
-	return NewService(nil, orderRepo, repo, xendit)
+	return NewService(nil, orderRepo, repo, nil, xendit)
 }
 
 func newPendingPayment(externalID string) models.Payment {
