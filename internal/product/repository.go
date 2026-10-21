@@ -59,7 +59,10 @@ func (r *repository) FindAll(ctx context.Context) ([]models.Product, error) {
 
 	var products []models.Product
 
-	err := r.db.WithContext(ctx).Preload("Category").Find(&products).Error
+	err := r.db.WithContext(ctx).
+		Preload("Category").
+		Preload("Images").
+		Find(&products).Error
 	if err != nil {
 		return nil, fmt.Errorf("finding products:%w", err)
 	}
@@ -74,7 +77,9 @@ func (r *repository) FindByID(ctx context.Context, id uuid.UUID) (models.Product
 
 	err := r.db.WithContext(ctx).
 		Preload("Category").
+		Preload("Images").
 		Preload("Variants").
+		Preload("Variants.Inventory").
 		First(&product, id).Error
 	if err != nil {
 
@@ -95,7 +100,9 @@ func (r *repository) FindBySlug(ctx context.Context, slug string) (models.Produc
 
 	err := r.db.WithContext(ctx).
 		Preload("Category").
+		Preload("Images").
 		Preload("Variants").
+		Preload("Variants.Inventory").
 		Where("slug = ?", slug).
 		First(&product).
 		Error

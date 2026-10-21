@@ -11,6 +11,7 @@ import (
 	redisClient "ferdinand/ecommerce/database/redis"
 	"ferdinand/ecommerce/internal/category"
 	"ferdinand/ecommerce/internal/models"
+	"ferdinand/ecommerce/internal/storage"
 	"ferdinand/ecommerce/utils/slug"
 
 	"github.com/google/uuid"
@@ -60,13 +61,15 @@ type service struct {
 	repo         Repository
 	categoryRepo category.Repository
 	cache        redisClient.Cache
+	storage      storage.Provider
 }
 
-func NewService(repo Repository, categoryRepo category.Repository, cache redisClient.Cache) *service {
+func NewService(repo Repository, categoryRepo category.Repository, cache redisClient.Cache, storage storage.Provider) *service {
 	return &service{
 		repo:         repo,
 		categoryRepo: categoryRepo,
 		cache:        cache,
+		storage:      storage,
 	}
 }
 

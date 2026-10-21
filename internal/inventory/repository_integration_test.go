@@ -539,3 +539,46 @@ func TestStockMovementRepositoryFindAllByInventoryIDOrdered(t *testing.T) {
 		t.Fatalf("FindAllByInventoryID() = %v, want created_at ascending order", movements)
 	}
 }
+
+func TestStockMovementRepositoryFindAllPaged(t *testing.T) {
+	db := setupTestDB(t)
+
+	category := seedCategory(t, db, "cat-findall", "cat-findall")
+	product := seedProduct(t, db, category.ID, "keyboard", "keyboard-findall")
+	variant := seedVariant(t, db, product.ID, "SKU-FINDALL", "65%")
+	item := seedInventory(t, db, variant.ID, 10)
+
+	seedMovement(t, db, item.ID, "RESTOCK", 10, time.Now().Add(-3*time.Hour))
+	seedMovement(t, db, item.ID, "SALE", -2, time.Now().Add(-2*time.Hour))
+	seedMovement(t, db, item.ID, "DAMAGE", -1, time.Now().Add(-1*time.Hour))
+
+	repo := NewStockMovementRepository(db)
+
+	movements, total, err := repo.FindAll(context.Background(), nil, 1, 2)
+	if err != nil {
+		t.Fatalf("FindAll() error = %v", err)
+	}
+	if total != 3 {
+		t.Fatalf("total = %d, want 3", total)
+	}
+	if len(movements) != 2 {
+		t.Fatalf("len = %d, want 2 (halaman 1)", len(movements))
+	}
+	// Urutan created_at DESC: movement terbaru dulu.
+	if movements[0].Type != "DAMAGE" || movements[1].Type != "SALE" {
+		t.Fatalf("order = [%s, %s], want [DAMAGE, SALE]", movements[0].Type, movements[1].Type)
+	}
+	if movements[0].InventoryItem.ProductVariant.SKU != "SKU-FINDALL" {
+		t.Fatalf("preload variant = %+v, sku tidak terisi", movements[0].InventoryItem.ProductVariant)
+	}
+
+	// Filter type.
+	saleType := "SALE"
+	filtered, filteredTotal, err := repo.FindAll(context.Background(), &saleType, 1, 10)
+	if err != nil {
+		t.Fatalf("FindAll(filter) error = %v", err)
+	}
+	if filteredTotal != 1 || len(filtered) != 1 || filtered[0].Type != "SALE" {
+		t.Fatalf("filter SALE = total %d, len %d, type %s", filteredTotal, len(filtered), filtered[0].Type)
+	}
+}

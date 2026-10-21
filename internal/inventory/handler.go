@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	productvariant "ferdinand/ecommerce/internal/product_variant"
@@ -134,7 +135,6 @@ func (h *Handler) GetMovement(c *gin.Context) {
 }
 
 func (h *Handler) CreateMovement(c *gin.Context) {
-
 	productID, ok := parseProductID(c)
 	if !ok {
 		return
@@ -165,6 +165,89 @@ func (h *Handler) CreateMovement(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"movement": movement,
 	})
+}
+
+// parsePagination membaca page/page_size: default 1/10, maksimum 100
+// (pola sama dengan package order).
+const (
+	defaultPage     = 1
+	defaultPageSize = 10
+	maxPageSize     = 100
+)
+
+func parsePagination(c *gin.Context) (int, int, bool) {
+
+	page := defaultPage
+	pageSize := defaultPageSize
+
+	if raw := c.Query("page"); raw != "" {
+		value, err := strconv.Atoi(raw)
+		if err != nil || value < 1 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid page",
+			})
+			return 0, 0, false
+		}
+		page = value
+	}
+
+	if raw := c.Query("page_size"); raw != "" {
+		value, err := strconv.Atoi(raw)
+		if err != nil || value < 1 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid page_size",
+			})
+			return 0, 0, false
+		}
+		if value > maxPageSize {
+			value = maxPageSize
+		}
+		pageSize = value
+	}
+
+	return page, pageSize, true
+}
+
+// GET /admin/stock-movements?type=RESTOCK&page=1&page_size=10
+func (h *Handler) ListAllMovements(c *gin.Context) {
+
+	page, pageSize, ok := parsePagination(c)
+	if !ok {
+		return
+	}
+
+	var movementType *StockMovementType
+	if raw := c.Query("type"); raw != "" {
+		t := StockMovementType(raw)
+		switch t {
+		case StockMovementRestock,
+			StockMovementSale,
+			StockMovementReturn,
+			StockMovementDamage,
+			StockMovementAdjustment,
+			StockMovementOrderCancel:
+			movementType = &t
+		default:
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid stock movement type",
+			})
+			return
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	result, err := h.service.ListAllMovements(ctx, movementType, page, pageSize)
+	if err != nil {
+		slog.Error("inventory.list_all_movements_failed", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "internal server error",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
 }
 
 func (h *Handler) respondError(c *gin.Context, err error, event string, variantID uuid.UUID) {

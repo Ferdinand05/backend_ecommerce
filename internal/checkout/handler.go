@@ -27,8 +27,14 @@ func currentUserID(c *gin.Context) (uuid.UUID, bool) {
 		return uuid.Nil, false
 	}
 
-	userID, ok := raw.(uuid.UUID)
+	// Middleware memasang claims.Subject berupa string.
+	value, ok := raw.(string)
 	if !ok {
+		return uuid.Nil, false
+	}
+
+	userID, err := uuid.Parse(value)
+	if err != nil {
 		return uuid.Nil, false
 	}
 

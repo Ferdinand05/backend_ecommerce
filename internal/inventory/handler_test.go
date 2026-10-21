@@ -27,6 +27,9 @@ type fakeService struct {
 
 	createRes StockMovementResponse
 	createErr error
+
+	listAllRes StockMovementListResponse
+	listAllErr error
 }
 
 func (f *fakeService) GetInventory(ctx context.Context, productID uuid.UUID, variantID uuid.UUID) (InventoryResponse, error) {
@@ -45,6 +48,10 @@ func (f *fakeService) CreateMovement(ctx context.Context, productID uuid.UUID, v
 	return f.createRes, f.createErr
 }
 
+func (f *fakeService) ListAllMovements(ctx context.Context, movementType *StockMovementType, page, pageSize int) (StockMovementListResponse, error) {
+	return f.listAllRes, f.listAllErr
+}
+
 type inventoryEnvelope struct {
 	Inventory InventoryResponse `json:"inventory"`
 }
@@ -60,7 +67,7 @@ type movementEnvelope struct {
 func newTestRouter(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	RegisterRoutes(r.Group("/api/v1"), NewHandler(svc))
+	RegisterRoutes(r.Group("/api/v1"), r.Group("/api/v1/admin"), NewHandler(svc))
 	return r
 }
 
@@ -280,5 +287,61 @@ func TestHandlerCreateMovementError(t *testing.T) {
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusInternalServerError)
+	}
+}
+
+// --- list all movements (admin) ---
+
+func TestHandlerListAllMovements(t *testing.T) {
+	svc := &fakeService{}
+	svc.listAllRes = StockMovementListResponse{
+		Movements: []AdminStockMovementResponse{{
+			StockMovementResponse: StockMovementResponse{ID: uuid.New(), Type: "RESTOCK"},
+			SKU:                   "SKU-1",
+			VariantName:           "16GB",
+		}},
+		Meta: StockMovementListMeta{Total: 1, Page: 2, PageSize: 10},
+	}
+
+	r := newTestRouter(svc)
+	w := doRequest(t, r, http.MethodGet, "/api/v1/admin/stock-movements?page=2", "")
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %s", w.Code, w.Body.String())
+	}
+
+	var got struct {
+		Movements []AdminStockMovementResponse `json:"movements"`
+		Meta      StockMovementListMeta        `json:"meta"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if len(got.Movements) != 1 || got.Movements[0].SKU != "SKU-1" || got.Movements[0].VariantName != "16GB" {
+		t.Fatalf("movements = %+v, tidak sesuai", got.Movements)
+	}
+	if got.Meta.Page != 2 || got.Meta.Total != 1 {
+		t.Fatalf("meta = %+v, tidak sesuai", got.Meta)
+	}
+}
+
+func TestHandlerListAllMovementsInvalidType(t *testing.T) {
+	r := newTestRouter(&fakeService{})
+
+	w := doRequest(t, r, http.MethodGet, "/api/v1/admin/stock-movements?type=HACKED", "")
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+}
+
+func TestHandlerListAllMovementsInvalidPage(t *testing.T) {
+	r := newTestRouter(&fakeService{})
+
+	w := doRequest(t, r, http.MethodGet, "/api/v1/admin/stock-movements?page=0", "")
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
 	}
 }

@@ -36,6 +36,12 @@ type Service interface {
 		variantID uuid.UUID,
 		req CreateStockMovementRequest,
 	) (StockMovementResponse, error)
+
+	ListAllMovements(
+		ctx context.Context,
+		movementType *StockMovementType,
+		page, pageSize int,
+	) (StockMovementListResponse, error)
 }
 
 type service struct {
@@ -90,6 +96,7 @@ func toInventoryResponse(item models.InventoryItem) InventoryResponse {
 		ID:               item.ID,
 		ProductVariantID: item.ProductVariantID,
 		Quantity:         item.Quantity,
+		ReservedQuantity: item.ReservedQuantity,
 		CreatedAt:        item.CreatedAt,
 		UpdatedAt:        item.UpdatedAt,
 	}
@@ -115,6 +122,43 @@ func toStockMovementResponses(movements []models.StockMovement) []StockMovementR
 	}
 
 	return responses
+}
+
+// ListAllMovements: list global semua stock movement untuk admin.
+func (s *service) ListAllMovements(
+	ctx context.Context,
+	movementType *StockMovementType,
+	page, pageSize int,
+) (StockMovementListResponse, error) {
+
+	var typeFilter *string
+	if movementType != nil {
+		value := string(*movementType)
+		typeFilter = &value
+	}
+
+	movements, total, err := s.movementRepo.FindAll(ctx, typeFilter, page, pageSize)
+	if err != nil {
+		return StockMovementListResponse{}, err
+	}
+
+	items := make([]AdminStockMovementResponse, len(movements))
+	for i, m := range movements {
+		items[i] = AdminStockMovementResponse{
+			StockMovementResponse: toStockMovementResponse(m),
+			SKU:                   m.InventoryItem.ProductVariant.SKU,
+			VariantName:           m.InventoryItem.ProductVariant.Name,
+		}
+	}
+
+	return StockMovementListResponse{
+		Movements: items,
+		Meta: StockMovementListMeta{
+			Total:    total,
+			Page:     page,
+			PageSize: pageSize,
+		},
+	}, nil
 }
 
 func (s *service) GetInventory(ctx context.Context, productID uuid.UUID, variantID uuid.UUID) (InventoryResponse, error) {

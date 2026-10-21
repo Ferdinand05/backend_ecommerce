@@ -5,6 +5,7 @@ import (
 	"errors"
 	"ferdinand/ecommerce/internal/category"
 	"ferdinand/ecommerce/internal/models"
+	"ferdinand/ecommerce/internal/storage"
 	"net/http"
 	"time"
 
@@ -14,15 +15,35 @@ import (
 
 type Handler struct {
 	service Service
+	storage storage.Provider
 }
 
-func NewHandler(service Service) *Handler {
+func NewHandler(service Service, storage storage.Provider) *Handler {
 	return &Handler{
 		service: service,
+		storage: storage,
 	}
 }
 
-func toProductResponse(product models.Product) ProductResponse {
+func toProductImageResponse(image models.ProductImage, provider storage.Provider) ProductImageResponse {
+	return ProductImageResponse{
+		ID:        image.ID,
+		URL:       provider.URL(image.StorageKey),
+		Alt:       image.Alt,
+		SortOrder: image.SortOrder,
+	}
+}
+
+func toProductImageResponses(images []models.ProductImage, provider storage.Provider) []ProductImageResponse {
+	responses := make([]ProductImageResponse, len(images))
+	for i, img := range images {
+		responses[i] = toProductImageResponse(img, provider)
+	}
+
+	return responses
+}
+
+func toProductResponse(product models.Product, provider storage.Provider) ProductResponse {
 	return ProductResponse{
 		ID:          product.ID,
 		CategoryID:  product.CategoryID,
@@ -35,29 +56,40 @@ func toProductResponse(product models.Product) ProductResponse {
 			Name: product.Category.Name,
 			Slug: product.Category.Slug,
 		},
+		Images:    toProductImageResponses(product.Images, provider),
 		CreatedAt: product.CreatedAt,
 		UpdatedAt: product.UpdatedAt,
 	}
 }
 
 func toProductVariantResponse(variant models.ProductVariant) ProductVariantResponse {
-	return ProductVariantResponse{
+	response := ProductVariantResponse{
 		ID:       variant.ID,
 		SKU:      variant.SKU,
 		Name:     variant.Name,
 		Price:    variant.Price,
 		IsActive: variant.IsActive,
 	}
+
+	// Zero value (tanpa Preload) = null, bukan stok nol palsu.
+	if variant.Inventory != nil {
+		response.Inventory = &ProductVariantStockResponse{
+			Quantity:         variant.Inventory.Quantity,
+			ReservedQuantity: variant.Inventory.ReservedQuantity,
+		}
+	}
+
+	return response
 }
 
-func toProductDetailResponse(product models.Product) ProductDetailResponse {
+func toProductDetailResponse(product models.Product, provider storage.Provider) ProductDetailResponse {
 	variants := make([]ProductVariantResponse, len(product.Variants))
 	for i, v := range product.Variants {
 		variants[i] = toProductVariantResponse(v)
 	}
 
 	return ProductDetailResponse{
-		ProductResponse: toProductResponse(product),
+		ProductResponse: toProductResponse(product, provider),
 		Variants:        variants,
 	}
 }
@@ -76,7 +108,7 @@ func (h *Handler) FindAll(c *gin.Context) {
 
 	responses := make([]ProductResponse, len(products))
 	for i, p := range products {
-		responses[i] = toProductResponse(p)
+		responses[i] = toProductResponse(p, h.storage)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -114,7 +146,7 @@ func (h *Handler) FindByID(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"product": toProductDetailResponse(product),
+		"product": toProductDetailResponse(product, h.storage),
 	})
 }
 
@@ -142,7 +174,7 @@ func (h *Handler) FindBySlug(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"product": toProductDetailResponse(product),
+		"product": toProductDetailResponse(product, h.storage),
 	})
 }
 
@@ -184,7 +216,7 @@ func (h *Handler) Create(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"product": toProductResponse(product),
+		"product": toProductResponse(product, h.storage),
 	})
 }
 
@@ -240,7 +272,7 @@ func (h *Handler) Update(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"product": toProductResponse(product),
+		"product": toProductResponse(product, h.storage),
 	})
 }
 
