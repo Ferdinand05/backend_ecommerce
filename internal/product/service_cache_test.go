@@ -66,7 +66,7 @@ func (f *fakeCache) Delete(ctx context.Context, keys ...string) error {
 }
 
 func newTestService(repo *fakeRepo, cache *fakeCache) *service {
-	return NewService(repo, &fakeCategoryRepo{}, cache)
+	return NewService(repo, &fakeCategoryRepo{}, cache, nil)
 }
 
 func sampleProducts() []models.Product {
@@ -199,6 +199,7 @@ func TestWriteOperationsInvalidateListCache(t *testing.T) {
 		&fakeRepo{createRes: models.Product{ID: uuid.New()}, updateRes: models.Product{ID: uuid.New()}},
 		categoryRepo,
 		cache,
+		nil,
 	)
 
 	if _, err := svc.Create(context.Background(), CreateProductRequest{

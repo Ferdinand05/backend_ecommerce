@@ -81,17 +81,6 @@ func main() {
 	categoryService := category.NewService(categoryRepo, redisClientCache)
 	categoryHandler := category.NewHandler(categoryService)
 
-	productRepo := product.NewRepository(db)
-	productService := product.NewService(productRepo, categoryRepo, redisClientCache)
-	productHandler := product.NewHandler(productService)
-
-	productVariantRepo := productvariant.NewRepository(db)
-
-	inventoryItemRepo := inventory.NewInventoryRepository(db)
-
-	productVariantService := productvariant.NewService(productVariantRepo, productRepo, inventoryItemRepo, db)
-	productVariantHandler := productvariant.NewHandler(productVariantService)
-
 	r2Storage, err := cloudflare.NewStorage(ctx, cloudflare.Config{
 		AccountID:       cfg.R2.AccountID,
 		AccessKeyID:     cfg.R2.AccessKeyID,
@@ -102,6 +91,17 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	productRepo := product.NewRepository(db)
+	productService := product.NewService(productRepo, categoryRepo, redisClientCache, r2Storage)
+	productHandler := product.NewHandler(productService, r2Storage)
+
+	productVariantRepo := productvariant.NewRepository(db)
+
+	inventoryItemRepo := inventory.NewInventoryRepository(db)
+
+	productVariantService := productvariant.NewService(productVariantRepo, productRepo, inventoryItemRepo, db)
+	productVariantHandler := productvariant.NewHandler(productVariantService)
 
 	productImageRepo := productimage.NewRepository(db)
 	productImageService := productimage.NewService(productImageRepo, productRepo, productVariantRepo, r2Storage)

@@ -20,4 +20,5 @@ type Product struct {
 	Category Category `gorm:"foreignKey:CategoryID"`
 
 	Variants []ProductVariant `gorm:"foreignKey:ProductID"`
+	Images   []ProductImage   `gorm:"foreignKey:ProductID"`
 }

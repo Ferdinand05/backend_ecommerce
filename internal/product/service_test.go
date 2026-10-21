@@ -130,7 +130,7 @@ func TestServiceFindAll(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewService(tt.repo, &fakeCategoryRepo{}, &fakeCache{data: map[string][]byte{}})
+			svc := NewService(tt.repo, &fakeCategoryRepo{}, &fakeCache{data: map[string][]byte{}}, nil)
 
 			got, err := svc.FindAll(context.Background())
 			if tt.wantErr != nil {
@@ -170,7 +170,7 @@ func TestServiceFindByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewService(tt.repo, &fakeCategoryRepo{}, &fakeCache{data: map[string][]byte{}})
+			svc := NewService(tt.repo, &fakeCategoryRepo{}, &fakeCache{data: map[string][]byte{}}, nil)
 
 			got, err := svc.FindByID(context.Background(), id)
 			if tt.wantErr != nil {
@@ -208,7 +208,7 @@ func TestServiceFindBySlug(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewService(tt.repo, &fakeCategoryRepo{}, &fakeCache{data: map[string][]byte{}})
+			svc := NewService(tt.repo, &fakeCategoryRepo{}, &fakeCache{data: map[string][]byte{}}, nil)
 
 			got, err := svc.FindBySlug(context.Background(), "laptop")
 			if tt.wantErr != nil {
@@ -278,7 +278,7 @@ func TestServiceCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewService(tt.repo, tt.category, &fakeCache{data: map[string][]byte{}})
+			svc := NewService(tt.repo, tt.category, &fakeCache{data: map[string][]byte{}}, nil)
 
 			got, err := svc.Create(context.Background(), tt.req)
 			if tt.wantErr != nil {
@@ -386,7 +386,7 @@ func TestServiceUpdate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewService(tt.repo, tt.category, &fakeCache{data: map[string][]byte{}})
+			svc := NewService(tt.repo, tt.category, &fakeCache{data: map[string][]byte{}}, nil)
 
 			got, err := svc.Update(context.Background(), id, tt.req)
 			if tt.wantErr != nil {
@@ -450,7 +450,7 @@ func TestServiceDelete(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewService(tt.repo, &fakeCategoryRepo{}, &fakeCache{data: map[string][]byte{}})
+			svc := NewService(tt.repo, &fakeCategoryRepo{}, &fakeCache{data: map[string][]byte{}}, nil)
 
 			err := svc.Delete(context.Background(), id)
 			if tt.wantErr != nil {

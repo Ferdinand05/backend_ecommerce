@@ -6,6 +6,7 @@ import (
 	"errors"
 	"ferdinand/ecommerce/internal/category"
 	"ferdinand/ecommerce/internal/models"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -32,6 +33,21 @@ type fakeService struct {
 	updateErr error
 
 	deleteErr error
+}
+
+// fakeStorage: pengganti provider R2 untuk pengujian mapper gambar.
+type fakeStorage struct{}
+
+func (fakeStorage) Upload(ctx context.Context, key string, file io.Reader, contentType string) error {
+	return nil
+}
+
+func (fakeStorage) Delete(ctx context.Context, key string) error {
+	return nil
+}
+
+func (fakeStorage) URL(key string) string {
+	return "https://cdn.example.com/" + key
 }
 
 func (f *fakeService) FindAll(ctx context.Context) ([]models.Product, error) {
@@ -69,7 +85,7 @@ type productsEnvelope struct {
 func newTestRouter(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	RegisterRoutes(r.Group("/api/v1"), NewHandler(svc))
+	RegisterRoutes(r.Group("/api/v1"), NewHandler(svc, fakeStorage{}))
 	return r
 }
 
