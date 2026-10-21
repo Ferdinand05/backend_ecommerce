@@ -143,6 +143,16 @@ func Load() (Config, error) {
 		return Config{}, errors.New("BITESHIP_COURIERS is required")
 	}
 
+	xenditApiKey := os.Getenv("XENDIT_API_KEY")
+	if xenditApiKey == "" {
+		return Config{}, errors.New("XENDIT_API_KEY is required")
+	}
+
+	xenditWebhookToken := os.Getenv("XENDIT_WEBHOOK_TOKEN")
+	if xenditWebhookToken == "" {
+		return Config{}, errors.New("XENDIT_WEBHOOK_TOKEN is required")
+	}
+
 	dbConfig := DatabaseConfig{
 		Host:     dbHost,
 		Port:     dbPort,
@@ -185,6 +195,10 @@ func Load() (Config, error) {
 			Timeout:      biteshipTimeout,
 			OriginAreaID: biteshipOriginAreaID,
 			Couriers:     biteshipCouriers,
+		},
+		Xendit: XenditConfig{
+			ApiKey:       xenditApiKey,
+			WebhookToken: xenditWebhookToken,
 		},
 	}, nil
 
