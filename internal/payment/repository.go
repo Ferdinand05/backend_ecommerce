@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Repository interface {
@@ -21,6 +22,11 @@ type Repository interface {
 
 	UpdateInvoice(ctx context.Context, paymentID uuid.UUID, invoiceID string, checkoutURL string, expiresAt *time.Time) error
 	UpdateStatus(ctx context.Context, paymentID uuid.UUID, status string, paidAt *time.Time) error
+
+	FindByIDForUpdate(ctx context.Context, paymentID uuid.UUID) (models.Payment, error)
+	MarkPaid(ctx context.Context, paymentID uuid.UUID, paidAt *time.Time) (bool, error)
+	MarkExpiredPending(ctx context.Context, paymentID uuid.UUID) (bool, error)
+	FailOtherPendingByOrderID(ctx context.Context, orderID uuid.UUID, excludePaymentID uuid.UUID) error
 }
 
 type repository struct {
@@ -178,6 +184,97 @@ func (r *repository) UpdateStatus(
 	}
 	if result.RowsAffected == 0 {
 		return ErrPaymentNotFound
+	}
+
+	return nil
+}
+
+// FindByIDForUpdate mengambil payment dengan SELECT ... FOR UPDATE.
+// Wajib dipanggil di dalam transaksi (pola database.InjectTx).
+func (r *repository) FindByIDForUpdate(
+	ctx context.Context,
+	paymentID uuid.UUID,
+) (models.Payment, error) {
+	var payment models.Payment
+
+	err := database.GetDB(ctx, r.db).
+		WithContext(ctx).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		First(&payment, "id = ?", paymentID).Error
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return models.Payment{}, ErrPaymentNotFound
+	}
+	if err != nil {
+		return models.Payment{}, fmt.Errorf("locking payment: %w", err)
+	}
+
+	return payment, nil
+}
+
+// MarkPaid mengubah payment menjadi PAID dari status apa pun kecuali
+// PAID itu sendiri. Mengembalikan false bila payment sudah PAID
+// (callback replay) sehingga proses menjadi no-op yang aman.
+func (r *repository) MarkPaid(
+	ctx context.Context,
+	paymentID uuid.UUID,
+	paidAt *time.Time,
+) (bool, error) {
+	result := database.GetDB(ctx, r.db).
+		WithContext(ctx).
+		Model(&models.Payment{}).
+		Where("id = ? AND status <> ?", paymentID, string(PaymentStatusPaid)).
+		Updates(map[string]interface{}{
+			"status":     string(PaymentStatusPaid),
+			"paid_at":    paidAt,
+			"updated_at": time.Now(),
+		})
+
+	if result.Error != nil {
+		return false, fmt.Errorf("marking payment paid: %w", result.Error)
+	}
+
+	return result.RowsAffected > 0, nil
+}
+
+// MarkExpiredPending mengubah payment PENDING menjadi EXPIRED.
+// Payment PAID/FAILED tidak disentuh; false berarti tidak ada perubahan.
+func (r *repository) MarkExpiredPending(
+	ctx context.Context,
+	paymentID uuid.UUID,
+) (bool, error) {
+	result := database.GetDB(ctx, r.db).
+		WithContext(ctx).
+		Model(&models.Payment{}).
+		Where("id = ? AND status = ?", paymentID, string(PaymentStatusPending)).
+		Update("status", string(PaymentStatusExpired))
+
+	if result.Error != nil {
+		return false, fmt.Errorf("marking payment expired: %w", result.Error)
+	}
+
+	return result.RowsAffected > 0, nil
+}
+
+// FailOtherPendingByOrderID menutup attempt PENDING lain milik order
+// yang sama setelah satu payment terkonfirmasi PAID, agar invoice lama
+// tidak menggantung sebagai PENDING di database.
+func (r *repository) FailOtherPendingByOrderID(
+	ctx context.Context,
+	orderID uuid.UUID,
+	excludePaymentID uuid.UUID,
+) error {
+	result := database.GetDB(ctx, r.db).
+		WithContext(ctx).
+		Model(&models.Payment{}).
+		Where(
+			"order_id = ? AND status = ? AND id <> ?",
+			orderID, string(PaymentStatusPending), excludePaymentID,
+		).
+		Update("status", string(PaymentStatusFailed))
+
+	if result.Error != nil {
+		return fmt.Errorf("failing other pending payments: %w", result.Error)
 	}
 
 	return nil

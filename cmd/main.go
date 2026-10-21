@@ -166,9 +166,8 @@ func main() {
 
 	xenditClient := paymentxendit.NewClient(cfg.Xendit.ApiKey)
 	paymentRepo := payment.NewRepository(db)
-	paymentService := payment.NewService(db, orderRepo, paymentRepo, xenditClient)
-	// Handler payment menyusul fase webhook; servis belum diregistrasi ke router.
-	_ = paymentService
+	paymentService := payment.NewService(db, orderRepo, paymentRepo, inventoryItemRepo, xenditClient)
+	paymentHandler := payment.NewHandler(paymentService, cfg.Xendit.WebhookToken)
 
 	handlers := router.RouteHandlers{
 		UserHandler:           userHandler,
@@ -183,6 +182,7 @@ func main() {
 		OrderHandler:          orderHandler,
 		ShippingHandler:       shippingHandler,
 		CheckoutHandler:       checkoutHandler,
+		PaymentHandler:        paymentHandler,
 	}
 
 	r := router.New(handlers, jwtSvc)
