@@ -16,8 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// paymentExpiration batas waktu pembayaran sebelum order kedaluwarsa
-// dan stok reservasi dilepas.
+
 const paymentExpiration = 30 * time.Minute
 
 // CreateOrder menyusun order dari keranjang user: validasi ulang varian,
