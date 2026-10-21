@@ -16,10 +16,19 @@ type fakeHandlerService struct {
 	cb    InvoiceCallback
 	res   error
 	calls int
+
+	createOrderID uuid.UUID
+	createUserID  uuid.UUID
+	createResult  CreatePaymentResult
+	createErr     error
+	createCalls   int
 }
 
 func (f *fakeHandlerService) CreatePayment(ctx context.Context, userID uuid.UUID, orderID uuid.UUID) (CreatePaymentResult, error) {
-	return CreatePaymentResult{}, errors.New("not implemented")
+	f.createCalls++
+	f.createUserID = userID
+	f.createOrderID = orderID
+	return f.createResult, f.createErr
 }
 
 func (f *fakeHandlerService) HandleInvoiceCallback(ctx context.Context, cb InvoiceCallback) error {
@@ -31,7 +40,21 @@ func (f *fakeHandlerService) HandleInvoiceCallback(ctx context.Context, cb Invoi
 func newWebhookRouter(svc Service, token string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	RegisterRoutes(r.Group("/api/v1"), NewHandler(svc, token))
+	RegisterRoutes(r.Group("/api/v1"), r.Group("/api/v1/me"), NewHandler(svc, token))
+	return r
+}
+
+func newAuthedRouter(svc Service) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	// Pengganti AuthMiddleware: pasang userID langsung.
+	r.Use(func(c *gin.Context) {
+		c.Set("userID", uuid.NewString())
+		c.Next()
+	})
+
+	RegisterRoutes(r.Group("/api/v1"), r.Group("/api/v1/me"), NewHandler(svc, "secret-token"))
 	return r
 }
 
@@ -47,6 +70,13 @@ func postWebhook(r *gin.Engine, token, body string) *httptest.ResponseRecorder {
 	return w
 }
 
+func postCreatePayment(r *gin.Engine, orderID string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/me/orders/"+orderID+"/payment", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w
+}
+
 const webhookBody = `{
 	"id": "inv-123",
 	"external_id": "PAY-1",
@@ -54,6 +84,8 @@ const webhookBody = `{
 	"amount": 120000,
 	"currency": "IDR"
 }`
+
+// --- webhook handler ---
 
 func TestWebhookHandlerRejectsInvalidToken(t *testing.T) {
 	svc := &fakeHandlerService{}
@@ -128,5 +160,87 @@ func TestWebhookHandlerInvalidBody(t *testing.T) {
 	}
 	if svc.calls != 0 {
 		t.Fatalf("service dipanggil %d kali, want 0", svc.calls)
+	}
+}
+
+// --- create payment handler ---
+
+func TestCreatePaymentHandlerSuccess(t *testing.T) {
+	paymentID := uuid.New()
+	orderID := uuid.New()
+
+	svc := &fakeHandlerService{}
+	svc.createResult = CreatePaymentResult{
+		PaymentID:   paymentID,
+		OrderID:     orderID,
+		Status:      "PENDING",
+		Amount:      "120000",
+		Currency:    "IDR",
+		CheckoutURL: "https://checkout.xendit.co/web/inv-1",
+	}
+
+	w := postCreatePayment(newAuthedRouter(svc), orderID.String())
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %s", w.Code, w.Body.String())
+	}
+	if svc.createCalls != 1 {
+		t.Fatalf("calls = %d, want 1", svc.createCalls)
+	}
+	if svc.createOrderID != orderID {
+		t.Fatalf("order_id = %s, want %s", svc.createOrderID, orderID)
+	}
+	if svc.createUserID == uuid.Nil {
+		t.Fatal("userID kosong, harus dari context")
+	}
+
+	body := w.Body.String()
+	for _, want := range []string{
+		`"payment_id":"` + paymentID.String() + `"`,
+		`"checkout_url":"https://checkout.xendit.co/web/inv-1"`,
+		`"amount":"120000"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("body tidak memuat %s:\n%s", want, body)
+		}
+	}
+}
+
+func TestCreatePaymentHandlerInvalidOrderID(t *testing.T) {
+	svc := &fakeHandlerService{}
+
+	w := postCreatePayment(newAuthedRouter(svc), "bukan-uuid")
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+	if svc.createCalls != 0 {
+		t.Fatalf("service dipanggil %d kali, want 0", svc.createCalls)
+	}
+}
+
+func TestCreatePaymentHandlerMapsErrors(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        error
+		wantStatus int
+	}{
+		{name: "order tidak ditemukan", err: ErrOrderNotFound, wantStatus: http.StatusNotFound},
+		{name: "order tidak bisa dibayar", err: ErrOrderNotPayable, wantStatus: http.StatusConflict},
+		{name: "periode bayar habis", err: ErrOrderPaymentExpired, wantStatus: http.StatusGone},
+		{name: "state ambigu", err: ErrPaymentStateAmbiguous, wantStatus: http.StatusBadGateway},
+		{name: "error lain", err: errors.New("db down"), wantStatus: http.StatusInternalServerError},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &fakeHandlerService{createErr: tt.err}
+
+			w := postCreatePayment(newAuthedRouter(svc), uuid.NewString())
+
+			if w.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d", w.Code, tt.wantStatus)
+			}
+		})
 	}
 }
