@@ -10,8 +10,28 @@ type InventoryResponse struct {
 	ID               uuid.UUID `json:"id"`
 	ProductVariantID uuid.UUID `json:"product_variant_id"`
 	Quantity         int       `json:"quantity"`
+	ReservedQuantity int       `json:"reserved_quantity"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+// AdminStockMovementResponse adalah item list global stock movement
+// untuk admin: identitas item + sku/variant supaya enak di datatable.
+type AdminStockMovementResponse struct {
+	StockMovementResponse
+	SKU         string `json:"sku"`
+	VariantName string `json:"variant_name"`
+}
+
+type StockMovementListMeta struct {
+	Total    int64 `json:"total"`
+	Page     int   `json:"page"`
+	PageSize int   `json:"page_size"`
+}
+
+type StockMovementListResponse struct {
+	Movements []AdminStockMovementResponse `json:"movements"`
+	Meta      StockMovementListMeta        `json:"meta"`
 }
 
 type StockMovementResponse struct {

@@ -83,6 +83,10 @@ type fakeMovementRepo struct {
 	findAllRes   []models.StockMovement
 	findAllErr   error
 	findAllInvID uuid.UUID
+
+	allRes   []models.StockMovement
+	allTotal int64
+	allErr   error
 }
 
 func (f *fakeMovementRepo) Create(ctx context.Context, movement models.StockMovement) error {
@@ -97,6 +101,10 @@ func (f *fakeMovementRepo) FindByID(ctx context.Context, id uuid.UUID) (models.S
 func (f *fakeMovementRepo) FindAllByInventoryID(ctx context.Context, inventoryID uuid.UUID) ([]models.StockMovement, error) {
 	f.findAllInvID = inventoryID
 	return f.findAllRes, f.findAllErr
+}
+
+func (f *fakeMovementRepo) FindAll(ctx context.Context, movementType *string, page, pageSize int) ([]models.StockMovement, int64, error) {
+	return f.allRes, f.allTotal, f.allErr
 }
 
 type fakeVariantRepo struct {
@@ -310,5 +318,42 @@ func TestServiceCreateMovementChecks(t *testing.T) {
 				t.Fatal("CreateMovement() must not reach repository on validation failure")
 			}
 		})
+	}
+}
+
+func TestServiceListAllMovements(t *testing.T) {
+	variantID := uuid.New()
+	itemID := uuid.New()
+
+	repo := &fakeMovementRepo{
+		allRes: []models.StockMovement{{
+			ID:              uuid.New(),
+			InventoryItemID: itemID,
+			Type:            string(StockMovementRestock),
+			Quantity:        5,
+			InventoryItem: models.InventoryItem{
+				ID:             itemID,
+				ProductVariant: models.ProductVariant{ID: variantID, SKU: "SKU-1", Name: "16GB"},
+			},
+		}},
+		allTotal: 11,
+	}
+
+	svc := NewService(&fakeItemRepo{}, repo, &fakeVariantRepo{}, nil)
+
+	movementType := StockMovementRestock
+	result, err := svc.ListAllMovements(context.Background(), &movementType, 2, 10)
+	if err != nil {
+		t.Fatalf("ListAllMovements() error = %v", err)
+	}
+
+	if len(result.Movements) != 1 {
+		t.Fatalf("len = %d, want 1", len(result.Movements))
+	}
+	if result.Movements[0].SKU != "SKU-1" || result.Movements[0].VariantName != "16GB" {
+		t.Fatalf("movement = %+v, sku/variant tidak terisi", result.Movements[0])
+	}
+	if result.Meta.Total != 11 || result.Meta.Page != 2 || result.Meta.PageSize != 10 {
+		t.Fatalf("meta = %+v, tidak sesuai", result.Meta)
 	}
 }
