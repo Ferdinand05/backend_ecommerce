@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -159,6 +160,88 @@ func (h *Handler) CreatePayment(c *gin.Context) {
 				"error": "internal server error",
 			})
 		}
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+const (
+	defaultPage     = 1
+	defaultPageSize = 10
+	maxPageSize     = 100
+)
+
+// parsePagination: pola sama dengan package lain
+// (default 1/10, page_size dibatasi 100).
+func parsePagination(c *gin.Context) (int, int, bool) {
+
+	page := defaultPage
+	pageSize := defaultPageSize
+
+	if raw := c.Query("page"); raw != "" {
+		value, err := strconv.Atoi(raw)
+		if err != nil || value < 1 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid page",
+			})
+			return 0, 0, false
+		}
+		page = value
+	}
+
+	if raw := c.Query("page_size"); raw != "" {
+		value, err := strconv.Atoi(raw)
+		if err != nil || value < 1 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid page_size",
+			})
+			return 0, 0, false
+		}
+		if value > maxPageSize {
+			value = maxPageSize
+		}
+		pageSize = value
+	}
+
+	return page, pageSize, true
+}
+
+// GET /admin/payments?status=&page=&page_size=
+func (h *Handler) ListPayments(c *gin.Context) {
+
+	page, pageSize, ok := parsePagination(c)
+	if !ok {
+		return
+	}
+
+	var status *PaymentStatus
+	if raw := c.Query("status"); raw != "" {
+		s := PaymentStatus(raw)
+		switch s {
+		case PaymentStatusPending,
+			PaymentStatusPaid,
+			PaymentStatusExpired,
+			PaymentStatusFailed:
+			status = &s
+		default:
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid status filter",
+			})
+			return
+		}
+	}
+
+	// Longgar tidak perlu: murni query database lokal.
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	result, err := h.service.ListPayments(ctx, status, page, pageSize)
+	if err != nil {
+		slog.Error("payment.list_failed", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "internal server error",
+		})
 		return
 	}
 

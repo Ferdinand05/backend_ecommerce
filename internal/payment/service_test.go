@@ -57,6 +57,9 @@ type fakePaymentRepo struct {
 	created        []*models.Payment
 	statusUpdates  []statusUpdate
 	invoiceUpdates []*models.Payment
+
+	findAllStatus  *string
+	findAllResults []models.Payment
 }
 
 func (f *fakePaymentRepo) FindByIDForUpdate(ctx context.Context, paymentID uuid.UUID) (models.Payment, error) {
@@ -553,5 +556,36 @@ func TestCreatePaymentRejectsFractionalAmount(t *testing.T) {
 	}
 	if xendit.createCalls != 0 {
 		t.Fatalf("CreateInvoice dipanggil %d kali, want 0", xendit.createCalls)
+	}
+}
+
+func (f *fakePaymentRepo) FindAll(
+	ctx context.Context,
+	status *string,
+	page, pageSize int,
+) ([]models.Payment, int64, error) {
+	f.findAllStatus = status
+	return f.findAllResults, int64(len(f.findAllResults)), nil
+}
+
+func TestListPaymentsMapsFilterAndItems(t *testing.T) {
+	repo := &fakePaymentRepo{findAllResults: []models.Payment{
+		{ID: uuid.New(), Status: string(PaymentStatusPaid), Amount: decimal.NewFromInt(120000), Currency: "IDR"},
+	}}
+	svc := newTestService(nil, repo, &fakeXendit{})
+
+	st := PaymentStatusPaid
+	result, err := svc.ListPayments(context.Background(), &st, 2, 10)
+	if err != nil {
+		t.Fatalf("ListPayments() error = %v", err)
+	}
+	if repo.findAllStatus == nil || *repo.findAllStatus != "PAID" {
+		t.Fatalf("filter status = %v, want PAID", repo.findAllStatus)
+	}
+	if result.Meta.Total != 1 || result.Meta.Page != 2 || result.Meta.PageSize != 10 {
+		t.Fatalf("meta = %+v, want total 1 page 2 size 10", result.Meta)
+	}
+	if len(result.Payments) != 1 || result.Payments[0].Amount != "120000" {
+		t.Fatalf("payments = %+v", result.Payments)
 	}
 }

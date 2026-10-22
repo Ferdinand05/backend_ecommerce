@@ -28,6 +28,12 @@ type Service interface {
 		ctx context.Context,
 		cb InvoiceCallback,
 	) error
+
+	ListPayments(
+		ctx context.Context,
+		status *PaymentStatus,
+		page, pageSize int,
+	) (PaymentListResponse, error)
 }
 
 type service struct {
@@ -327,6 +333,56 @@ func (s *service) markFailed(ctx context.Context, paymentID uuid.UUID) error {
 
 	slog.InfoContext(ctx, "payment.marked_failed", "payment_id", paymentID)
 	return nil
+}
+
+func (s *service) ListPayments(
+	ctx context.Context,
+	status *PaymentStatus,
+	page, pageSize int,
+) (PaymentListResponse, error) {
+
+	var statusFilter *string
+	if status != nil {
+		value := string(*status)
+		statusFilter = &value
+	}
+
+	payments, total, err := s.paymentRepo.FindAll(ctx, statusFilter, page, pageSize)
+	if err != nil {
+		return PaymentListResponse{}, err
+	}
+
+	items := make([]PaymentResponse, len(payments))
+	for i, p := range payments {
+		items[i] = toPaymentResponse(p)
+	}
+
+	return PaymentListResponse{
+		Payments: items,
+		Meta: PaymentListMeta{
+			Total:    total,
+			Page:     page,
+			PageSize: pageSize,
+		},
+	}, nil
+}
+
+func toPaymentResponse(p models.Payment) PaymentResponse {
+	return PaymentResponse{
+		ID:                p.ID,
+		OrderID:           p.OrderID,
+		Provider:          p.Provider,
+		ExternalID:        p.ExternalID,
+		ProviderInvoiceID: p.ProviderInvoiceID,
+		Status:            p.Status,
+		Amount:            p.Amount.String(),
+		Currency:          p.Currency,
+		CheckoutURL:       p.CheckoutURL,
+		ExpiresAt:         p.ExpiresAt,
+		PaidAt:            p.PaidAt,
+		CreatedAt:         p.CreatedAt,
+		UpdatedAt:         p.UpdatedAt,
+	}
 }
 
 func toCreatePaymentResult(
