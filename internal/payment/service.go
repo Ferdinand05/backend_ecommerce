@@ -163,6 +163,15 @@ func (s *service) CreatePayment(
 
 	amount, _ := payment.Amount.Float64()
 
+	// Invoice IDR harus bilangan bulat; pecahan (mis. dari ongkir)
+	// pasti ditolak Xendit dengan pesan generik.
+	if !payment.Amount.IsInteger() {
+		return CreatePaymentResult{}, fmt.Errorf(
+			"order total %s is not an integer amount: %w",
+			payment.Amount.String(), ErrInvalidInvoiceAmount,
+		)
+	}
+
 	// 7. Buat invoice di Xendit.
 	inv, err := s.xendit.CreateInvoice(
 		ctx,

@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"time"
 
 	sdk "github.com/xendit/xendit-go/v7"
+	common "github.com/xendit/xendit-go/v7/common"
 	invoice "github.com/xendit/xendit-go/v7/invoice"
 )
 
@@ -101,13 +103,30 @@ func (c *client) CreateInvoice(
 	)
 	request.SetDescription(req.Description)
 	request.SetCurrency(req.Currency)
-	request.SetInvoiceDuration(float32(req.InvoiceDuration.Seconds()))
+	// Xendit minta invoice_duration berupa integer detik; sisa milidetik
+	// dari time.Until() membuat nilainya pecahan dan API menolaknya.
+	request.SetInvoiceDuration(float32(int(req.InvoiceDuration.Seconds())))
 
 	result, _, err := c.sdk.InvoiceApi.
 		CreateInvoice(ctx).
 		CreateInvoiceRequest(request).
 		Execute()
 	if err != nil {
+		// Log body asli: pesan generik "Invalid input data" tidak
+		// menyebut field mana yang salah; rawResponse berisi detailnya.
+		var sdkErr common.XenditSdkError
+		if errors.As(err, &sdkErr) {
+			slog.Error("xendit.create_invoice_rejected",
+				"external_id", req.ExternalID,
+				"amount", req.Amount,
+				"currency", req.Currency,
+				"invoice_duration_seconds", int(req.InvoiceDuration.Seconds()),
+				"status", sdkErr.Status(),
+				"error_code", sdkErr.ErrorCode(),
+				"raw_response", sdkErr.RawResponse(),
+			)
+		}
+
 		return InvoiceResult{}, fmt.Errorf(
 			"creating Xendit invoice: %w",
 			err,

@@ -10,4 +10,5 @@ var (
 	ErrInvalidPayment        = errors.New("invalid payment")
 	ErrAmountMismatch        = errors.New("callback amount does not match payment")
 	ErrPaymentStateAmbiguous = errors.New("payment state could not be verified")
+	ErrInvalidInvoiceAmount  = errors.New("order total is not a valid invoice amount")
 )

@@ -538,3 +538,20 @@ func TestCreatePaymentLosesRaceAndReusesWinner(t *testing.T) {
 func ptr[T any](v T) *T {
 	return &v
 }
+
+func TestCreatePaymentRejectsFractionalAmount(t *testing.T) {
+	ord := payableOrder(uuid.New())
+	ord.TotalAmount = decimal.NewFromFloat(120000.5) // pecahan dari ongkir dsb.
+
+	repo := newFakePaymentRepo()
+	xendit := &fakeXendit{}
+	svc := newTestService(&ord, repo, xendit)
+
+	_, err := svc.CreatePayment(context.Background(), ord.UserID, ord.ID)
+	if !errors.Is(err, ErrInvalidInvoiceAmount) {
+		t.Fatalf("err = %v, want ErrInvalidInvoiceAmount", err)
+	}
+	if xendit.createCalls != 0 {
+		t.Fatalf("CreateInvoice dipanggil %d kali, want 0", xendit.createCalls)
+	}
+}
