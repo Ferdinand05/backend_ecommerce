@@ -291,6 +291,14 @@ func TestServiceCreateMovementChecks(t *testing.T) {
 			wantErr: ErrorInvalidMovementType,
 		},
 		{
+			// RESERVE hanya dibuat otomatis saat order dibuat,
+			// bukan penyesuaian manual admin.
+			name:    "reserve type rejected",
+			req:     CreateStockMovementRequest{Type: StockMovementReserve, Quantity: 1},
+			variant: &fakeVariantRepo{findByIDRes: models.ProductVariant{ID: variantID, ProductID: productID}},
+			wantErr: ErrorInvalidMovementType,
+		},
+		{
 			name:    "variant belongs to another product",
 			req:     CreateStockMovementRequest{Type: StockMovementRestock, Quantity: 1},
 			variant: &fakeVariantRepo{findByIDRes: models.ProductVariant{ID: variantID, ProductID: uuid.New()}},

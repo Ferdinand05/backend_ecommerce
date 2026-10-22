@@ -168,6 +168,7 @@ func newRealService(db *gorm.DB) Service {
 		order.NewRepository(db),
 		NewRepository(db),
 		inventory.NewInventoryRepository(db),
+		inventory.NewStockMovementRepository(db),
 		&fakeXendit{},
 	)
 }
@@ -206,6 +207,20 @@ func TestWebhookPaidFinalizesEverything(t *testing.T) {
 	require.NoError(t, f.db.First(&inv, "product_variant_id = ?", f.variant.ID).Error)
 	require.Equal(t, 8, inv.Quantity)
 	require.Equal(t, 0, inv.ReservedQuantity)
+
+	// Jurnal SALE satu baris, referensi order.
+	var movements []models.StockMovement
+	require.NoError(t, f.db.Find(&movements, "inventory_item_id = ?", inv.ID).Error)
+	require.Len(t, movements, 1)
+	m := movements[0]
+	require.Equal(t, "SALE", m.Type)
+	require.Equal(t, -2, m.Quantity)
+	require.NotNil(t, m.ReferenceType)
+	require.Equal(t, "ORDER", *m.ReferenceType)
+	require.NotNil(t, m.ReferenceID)
+	require.Equal(t, f.order.ID, *m.ReferenceID)
+	require.NotNil(t, m.Note)
+	require.Contains(t, *m.Note, f.order.OrderNumber)
 }
 
 func TestWebhookPaidReplayIsIdempotent(t *testing.T) {
@@ -224,6 +239,11 @@ func TestWebhookPaidReplayIsIdempotent(t *testing.T) {
 	require.NoError(t, f.db.First(&inv, "product_variant_id = ?", f.variant.ID).Error)
 	require.Equal(t, 8, inv.Quantity, "finalize tidak boleh dobel")
 	require.Equal(t, 0, inv.ReservedQuantity)
+
+	var count int64
+	require.NoError(t, f.db.Model(&models.StockMovement{}).
+		Where("inventory_item_id = ?", inv.ID).Count(&count).Error)
+	require.EqualValues(t, 1, count, "jurnal SALE tidak boleh dobel")
 }
 
 func TestWebhookExpiredKeepsOrderPending(t *testing.T) {
@@ -268,6 +288,10 @@ func TestWebhookPaidAfterCancelledRecordsPayment(t *testing.T) {
 	var ord models.Order
 	require.NoError(t, f.db.First(&ord, "id = ?", f.order.ID).Error)
 	require.Equal(t, "CANCELLED", ord.Status, "order tidak ikut PAID")
+
+	var count int64
+	require.NoError(t, f.db.Model(&models.StockMovement{}).Count(&count).Error)
+	require.EqualValues(t, 0, count, "order tidak PAID = tidak ada jurnal SALE")
 }
 
 func TestWebhookInsufficientStockRollsBack(t *testing.T) {
@@ -291,6 +315,10 @@ func TestWebhookInsufficientStockRollsBack(t *testing.T) {
 	var p models.Payment
 	require.NoError(t, f.db.First(&p, "id = ?", f.payment.ID).Error)
 	require.Equal(t, "PENDING", p.Status)
+
+	var count int64
+	require.NoError(t, f.db.Model(&models.StockMovement{}).Count(&count).Error)
+	require.EqualValues(t, 0, count, "rollback = tidak ada jurnal")
 
 	var ord models.Order
 	require.NoError(t, f.db.First(&ord, "id = ?", f.order.ID).Error)

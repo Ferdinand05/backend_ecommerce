@@ -146,6 +146,7 @@ func main() {
 		inventoryItemRepo,
 		productVariantRepo,
 		shippingService,
+		stockMovementRepo,
 	)
 	orderHandler := order.NewHandler(orderService)
 
@@ -166,7 +167,7 @@ func main() {
 
 	xenditClient := paymentxendit.NewClient(cfg.Xendit.ApiKey)
 	paymentRepo := payment.NewRepository(db)
-	paymentService := payment.NewService(db, orderRepo, paymentRepo, inventoryItemRepo, xenditClient)
+	paymentService := payment.NewService(db, orderRepo, paymentRepo, inventoryItemRepo, stockMovementRepo, xenditClient)
 	paymentHandler := payment.NewHandler(paymentService, cfg.Xendit.WebhookToken)
 
 	handlers := router.RouteHandlers{

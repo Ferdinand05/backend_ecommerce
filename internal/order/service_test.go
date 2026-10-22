@@ -1,4 +1,4 @@
-package order
+﻿package order
 
 import (
 	"context"
@@ -79,7 +79,7 @@ func (f *fakeRepo) UpdateStatus(ctx context.Context, orderID uuid.UUID, status s
 
 func TestFindMyOrdersPassesPagination(t *testing.T) {
 	repo := &fakeRepo{findAllByUserIDRes: OrderListResult{Total: 5, Page: 2, PageSize: 20}}
-	svc := NewService(repo, nil, nil, nil, nil, nil)
+	svc := NewService(repo, nil, nil, nil, nil, nil, nil)
 
 	userID := uuid.New()
 	result, err := svc.FindMyOrders(context.Background(), userID, 2, 20)
@@ -102,7 +102,7 @@ func TestFindMyOrder(t *testing.T) {
 
 	t.Run("owned", func(t *testing.T) {
 		repo := &fakeRepo{findByIDRes: models.Order{ID: uuid.New(), UserID: userID, Status: "PENDING"}}
-		svc := NewService(repo, nil, nil, nil, nil, nil)
+		svc := NewService(repo, nil, nil, nil, nil, nil, nil)
 
 		order, err := svc.FindMyOrder(context.Background(), userID, repo.findByIDRes.ID)
 		if err != nil {
@@ -116,7 +116,7 @@ func TestFindMyOrder(t *testing.T) {
 
 	t.Run("other user order is 404", func(t *testing.T) {
 		repo := &fakeRepo{findByIDRes: models.Order{ID: uuid.New(), UserID: uuid.New(), Status: "PENDING"}}
-		svc := NewService(repo, nil, nil, nil, nil, nil)
+		svc := NewService(repo, nil, nil, nil, nil, nil, nil)
 
 		_, err := svc.FindMyOrder(context.Background(), userID, repo.findByIDRes.ID)
 		if !errors.Is(err, ErrorOrderNotFound) {
@@ -126,7 +126,7 @@ func TestFindMyOrder(t *testing.T) {
 
 	t.Run("not found", func(t *testing.T) {
 		repo := &fakeRepo{findByIDErr: ErrorOrderNotFound}
-		svc := NewService(repo, nil, nil, nil, nil, nil)
+		svc := NewService(repo, nil, nil, nil, nil, nil, nil)
 
 		_, err := svc.FindMyOrder(context.Background(), userID, uuid.New())
 		if !errors.Is(err, ErrorOrderNotFound) {
@@ -137,7 +137,7 @@ func TestFindMyOrder(t *testing.T) {
 
 func TestFindAllPassesFilter(t *testing.T) {
 	repo := &fakeRepo{findAllRes: OrderListResult{Total: 1}}
-	svc := NewService(repo, nil, nil, nil, nil, nil)
+	svc := NewService(repo, nil, nil, nil, nil, nil, nil)
 
 	status := OrderStatusPaid
 	filter := OrderFilter{Status: &status, Page: 1, PageSize: 10}
@@ -154,7 +154,7 @@ func TestFindAllPassesFilter(t *testing.T) {
 
 func TestUpdateStatusInvalidStatus(t *testing.T) {
 	repo := &fakeRepo{}
-	svc := NewService(repo, nil, nil, nil, nil, nil)
+	svc := NewService(repo, nil, nil, nil, nil, nil, nil)
 
 	_, err := svc.UpdateStatus(context.Background(), uuid.New(), OrderStatus("JUNK"), nil)
 	if !errors.Is(err, ErrorInvalidOrderStatus) {
@@ -165,6 +165,3 @@ func TestUpdateStatusInvalidStatus(t *testing.T) {
 		t.Fatal("repo must not be called for invalid status")
 	}
 }
-
-// Transisi valid/invalid dan keberadaan history diuji di
-// service_integration_test.go karena butuh transaksi database sungguhan.

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"ferdinand/ecommerce/database"
+	"ferdinand/ecommerce/internal/inventory"
 	"ferdinand/ecommerce/internal/models"
 	"ferdinand/ecommerce/internal/shipping"
 
@@ -15,7 +16,6 @@ import (
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
-
 
 const paymentExpiration = 30 * time.Minute
 
@@ -187,10 +187,11 @@ func (s *service) CreateOrder(
 		txCtx := database.InjectTx(ctx, tx)
 
 		for _, item := range orderItems {
-			if _, err := s.inventoryRepo.FindByVariantIDForUpdate(
+			inv, err := s.inventoryRepo.FindByVariantIDForUpdate(
 				txCtx,
 				item.ProductVariantID,
-			); err != nil {
+			)
+			if err != nil {
 				return fmt.Errorf("locking inventory for variant %s: %w", item.ProductVariantID, err)
 			}
 
@@ -199,6 +200,21 @@ func (s *service) CreateOrder(
 				item.ProductVariantID,
 				item.Quantity,
 			); err != nil {
+				return err
+			}
+
+			// Jurnal RESERVE: stok belum turun, ini komitmen pesanan.
+			refType := "ORDER"
+			note := "Reservasi order " + order.OrderNumber
+			if err := s.movementRepo.Create(txCtx, models.StockMovement{
+				ID:              uuid.New(),
+				InventoryItemID: inv.ID,
+				Type:            string(inventory.StockMovementReserve),
+				Quantity:        -item.Quantity,
+				Note:            &note,
+				ReferenceType:   &refType,
+				ReferenceID:     &order.ID,
+			}); err != nil {
 				return err
 			}
 

@@ -36,6 +36,7 @@ type service struct {
 	orderRepo     orderReader
 	paymentRepo   Repository
 	inventoryRepo inventory.InventoryRepository
+	movementRepo  inventory.StockMovementRepository
 	xendit        xenditclient.Client
 }
 
@@ -53,6 +54,7 @@ func NewService(
 	orderRepo orderReader,
 	paymentRepo Repository,
 	inventoryRepo inventory.InventoryRepository,
+	movementRepo inventory.StockMovementRepository,
 	xendit xenditclient.Client,
 ) Service {
 	return &service{
@@ -60,6 +62,7 @@ func NewService(
 		orderRepo:     orderRepo,
 		paymentRepo:   paymentRepo,
 		inventoryRepo: inventoryRepo,
+		movementRepo:  movementRepo,
 		xendit:        xendit,
 	}
 }

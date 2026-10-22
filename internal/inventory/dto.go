@@ -54,6 +54,7 @@ const (
 	StockMovementDamage      StockMovementType = "DAMAGE"
 	StockMovementAdjustment  StockMovementType = "ADJUSTMENT"
 	StockMovementOrderCancel StockMovementType = "ORDER_CANCEL"
+	StockMovementReserve     StockMovementType = "RESERVE"
 )
 
 type CreateStockMovementRequest struct {

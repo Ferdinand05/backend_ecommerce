@@ -59,6 +59,7 @@ type service struct {
 	db            *gorm.DB
 	cartService   cartitems.Service
 	inventoryRepo inventory.InventoryRepository
+	movementRepo  inventory.StockMovementRepository
 	variantRepo   productvariant.Repository
 	shippingSvc   shipping.Service
 }
@@ -70,12 +71,14 @@ func NewService(
 	inventoryRepo inventory.InventoryRepository,
 	variantRepo productvariant.Repository,
 	shippingSvc shipping.Service,
+	movementRepo inventory.StockMovementRepository,
 ) *service {
 	return &service{
 		repository:    repository,
 		db:            db,
 		cartService:   cartService,
 		inventoryRepo: inventoryRepo,
+		movementRepo:  movementRepo,
 		variantRepo:   variantRepo,
 		shippingSvc:   shippingSvc,
 	}
