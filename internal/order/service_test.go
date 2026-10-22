@@ -1,4 +1,4 @@
-﻿package order
+package order
 
 import (
 	"context"
@@ -24,6 +24,9 @@ type fakeRepo struct {
 
 	findAllRes    OrderListResult
 	findAllFilter OrderFilter
+
+	findStatusHistoriesRes []models.OrderStatusHistory
+	findStatusHistoriesErr error
 
 	updateStatusCalled bool
 	updateStatusID     uuid.UUID
@@ -68,6 +71,13 @@ func (f *fakeRepo) CreateAddress(ctx context.Context, address *models.OrderAddre
 func (f *fakeRepo) CreateStatusHistory(ctx context.Context, history *models.OrderStatusHistory) error {
 	f.historiesCreated = append(f.historiesCreated, *history)
 	return nil
+}
+
+func (f *fakeRepo) FindStatusHistories(ctx context.Context, orderID uuid.UUID) ([]models.OrderStatusHistory, error) {
+	if f.findStatusHistoriesErr != nil {
+		return nil, f.findStatusHistoriesErr
+	}
+	return f.findStatusHistoriesRes, nil
 }
 
 func (f *fakeRepo) UpdateStatus(ctx context.Context, orderID uuid.UUID, status string) error {
@@ -164,4 +174,34 @@ func TestUpdateStatusInvalidStatus(t *testing.T) {
 	if repo.updateStatusCalled {
 		t.Fatal("repo must not be called for invalid status")
 	}
+}
+
+func TestFindStatusHistories(t *testing.T) {
+	orderID := uuid.New()
+
+	t.Run("pass through", func(t *testing.T) {
+		repo := &fakeRepo{findStatusHistoriesRes: []models.OrderStatusHistory{
+			{ID: uuid.New(), OrderID: orderID, Status: "PENDING"},
+			{ID: uuid.New(), OrderID: orderID, Status: "PAID"},
+		}}
+		svc := NewService(repo, nil, nil, nil, nil, nil, nil)
+
+		histories, err := svc.FindStatusHistories(context.Background(), orderID)
+		if err != nil {
+			t.Fatalf("FindStatusHistories() error = %v", err)
+		}
+		if len(histories) != 2 || histories[1].Status != "PAID" {
+			t.Fatalf("histories = %+v", histories)
+		}
+	})
+
+	t.Run("order not found", func(t *testing.T) {
+		repo := &fakeRepo{findStatusHistoriesErr: ErrorOrderNotFound}
+		svc := NewService(repo, nil, nil, nil, nil, nil, nil)
+
+		_, err := svc.FindStatusHistories(context.Background(), orderID)
+		if !errors.Is(err, ErrorOrderNotFound) {
+			t.Fatalf("err = %v, want ErrorOrderNotFound", err)
+		}
+	})
 }

@@ -15,5 +15,6 @@ func RegisterRoutes(me *gin.RouterGroup, admin *gin.RouterGroup, handler *Handle
 
 	admin.GET("/orders", handler.ListOrders)
 	admin.GET("/orders/:order_id", handler.GetOrder)
+	admin.GET("/orders/:order_id/histories", handler.ListStatusHistories)
 	admin.PATCH("/orders/:order_id/status", handler.UpdateStatus)
 }

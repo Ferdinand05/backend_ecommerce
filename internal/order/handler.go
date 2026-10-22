@@ -531,3 +531,46 @@ func toOrderAddressResponse(address models.OrderAddress) OrderAddressResponse {
 		BiteshipAreaID: address.BiteshipAreaID,
 	}
 }
+
+// GET /admin/orders/:order_id/histories — read-only, melacak perubahan
+// status order secara kronologis.
+func (h *Handler) ListStatusHistories(c *gin.Context) {
+
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+
+	orderID, ok := parseOrderID(c)
+	if !ok {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	histories, err := h.service.FindStatusHistories(ctx, orderID)
+	if err != nil {
+		respondOrderError(c, "order.list_histories", &userID, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"order_id":  orderID,
+		"histories": toOrderStatusHistoryResponses(histories),
+	})
+}
+
+func toOrderStatusHistoryResponses(histories []models.OrderStatusHistory) []OrderStatusHistoryResponse {
+	responses := make([]OrderStatusHistoryResponse, len(histories))
+	for i, history := range histories {
+		responses[i] = OrderStatusHistoryResponse{
+			ID:        history.ID,
+			Status:    history.Status,
+			Note:      history.Note,
+			CreatedAt: history.CreatedAt,
+		}
+	}
+
+	return responses
+}

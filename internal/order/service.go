@@ -41,6 +41,11 @@ type Service interface {
 		orderID uuid.UUID,
 	) (models.Order, error)
 
+	FindStatusHistories(
+		ctx context.Context,
+		orderID uuid.UUID,
+	) ([]models.OrderStatusHistory, error)
+
 	FindAll(
 		ctx context.Context,
 		filter OrderFilter,
@@ -104,6 +109,13 @@ func (s *service) FindMyOrder(ctx context.Context, userID uuid.UUID, orderID uui
 
 func (s *service) FindByID(ctx context.Context, orderID uuid.UUID) (models.Order, error) {
 	return s.repository.FindByID(ctx, orderID)
+}
+
+func (s *service) FindStatusHistories(
+	ctx context.Context,
+	orderID uuid.UUID,
+) ([]models.OrderStatusHistory, error) {
+	return s.repository.FindStatusHistories(ctx, orderID)
 }
 
 func (s *service) FindAll(ctx context.Context, filter OrderFilter) (OrderListResult, error) {
