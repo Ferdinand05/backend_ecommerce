@@ -132,6 +132,32 @@ func TestRepositoryFindByEmail(t *testing.T) {
 	}
 }
 
+func TestRepositoryFindAllPreloadsRole(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+
+	user := newTestUser()
+	if _, err := repo.Create(context.Background(), user); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	users, err := repo.FindAll(context.Background())
+	if err != nil {
+		t.Fatalf("FindAll() error = %v", err)
+	}
+
+	for _, u := range users {
+		if u.ID != user.ID {
+			continue
+		}
+		if u.Role.ID != uuid.MustParse(customerRoleID) {
+			t.Fatalf("FindAll() Role.ID = %v, want customer role", u.Role.ID)
+		}
+		return
+	}
+	t.Fatalf("user %v tidak ada di hasil FindAll", user.ID)
+}
+
 func TestRepositoryFindByEmailNotFound(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewRepository(db)

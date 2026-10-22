@@ -44,7 +44,9 @@ func (r *repository) FindAll(ctx context.Context) ([]models.User, error) {
 
 	var users []models.User
 
-	err := r.db.WithContext(ctx).Find(&users).Error
+	err := r.db.WithContext(ctx).
+		Preload("Role").
+		Find(&users).Error
 	if err != nil {
 		return nil, fmt.Errorf("finding users:%w", err)
 	}
