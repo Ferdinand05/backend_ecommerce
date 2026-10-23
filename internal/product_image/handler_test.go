@@ -308,7 +308,7 @@ func TestHandlerDeleteProductImageNotFound(t *testing.T) {
 }
 
 func TestHandlerDeleteVariantImage(t *testing.T) {
-	path := "/api/v1/products/" + uuid.New().String() + "/variants/" + uuid.New().String() + "/images/" + uuid.New().String()
+	path := "/api/v1/admin/products/" + uuid.New().String() + "/variants/" + uuid.New().String() + "/images/" + uuid.New().String()
 	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodDelete, path, "", "")
 
 	if w.Code != http.StatusNoContent {
