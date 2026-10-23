@@ -123,10 +123,7 @@ func (s *service) finalizePaidCallback(
 			slog.InfoContext(ctx, "webhook.payment_already_paid",
 				"payment_id", locked.ID)
 
-			// Shipment bisa tertinggal PENDING dari kegagalan sebelumnya
-			// setelah commit; replay webhook jadi kesempatan pemulihan.
-			s.recoverShipment(ctx, locked.OrderID)
-			return nil
+			return nil // recovery berjalan sekali, setelah transaksi selesai.
 		}
 
 		// 2. Lock order, periksa status terkini.
