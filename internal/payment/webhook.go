@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"ferdinand/ecommerce/database"
+	"ferdinand/ecommerce/internal/inventory"
 	"ferdinand/ecommerce/internal/models"
 	"ferdinand/ecommerce/internal/order"
 	xenditclient "ferdinand/ecommerce/internal/payment/xendit"
@@ -178,13 +179,35 @@ func (s *service) finalizePaidCallback(
 			return err
 		}
 
-		// 6. Finalisasi reservasi stok per item order.
+		// 6. Finalisasi reservasi stok per item order + jurnal SALE.
+		refType := "ORDER"
 		for _, item := range ord.Items {
 			if err := s.inventoryRepo.FinalizeReservation(
 				txCtx,
 				item.ProductVariantID,
 				item.Quantity,
 			); err != nil {
+				return err
+			}
+
+			inv, err := s.inventoryRepo.FindByVariantID(
+				txCtx,
+				item.ProductVariantID,
+			)
+			if err != nil {
+				return err
+			}
+
+			note := "Penjualan order " + ord.OrderNumber
+			if err := s.movementRepo.Create(txCtx, models.StockMovement{
+				ID:              uuid.New(),
+				InventoryItemID: inv.ID,
+				Type:            string(inventory.StockMovementSale),
+				Quantity:        -item.Quantity,
+				Note:            &note,
+				ReferenceType:   &refType,
+				ReferenceID:     &ord.ID,
+			}); err != nil {
 				return err
 			}
 		}

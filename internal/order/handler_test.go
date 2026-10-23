@@ -33,6 +33,9 @@ type fakeService struct {
 	findByIDRes models.Order
 	findByIDErr error
 
+	findStatusHistoriesRes []models.OrderStatusHistory
+	findStatusHistoriesErr error
+
 	findAllRes    OrderListResult
 	findAllErr    error
 	findAllFilter OrderFilter
@@ -64,6 +67,10 @@ func (f *fakeService) FindMyOrder(ctx context.Context, userID uuid.UUID, orderID
 
 func (f *fakeService) FindByID(ctx context.Context, orderID uuid.UUID) (models.Order, error) {
 	return f.findByIDRes, f.findByIDErr
+}
+
+func (f *fakeService) FindStatusHistories(ctx context.Context, orderID uuid.UUID) ([]models.OrderStatusHistory, error) {
+	return f.findStatusHistoriesRes, f.findStatusHistoriesErr
 }
 
 func (f *fakeService) FindAll(ctx context.Context, filter OrderFilter) (OrderListResult, error) {

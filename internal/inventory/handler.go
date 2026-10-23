@@ -225,7 +225,8 @@ func (h *Handler) ListAllMovements(c *gin.Context) {
 			StockMovementReturn,
 			StockMovementDamage,
 			StockMovementAdjustment,
-			StockMovementOrderCancel:
+			StockMovementOrderCancel,
+			StockMovementReserve:
 			movementType = &t
 		default:
 			c.JSON(http.StatusBadRequest, gin.H{

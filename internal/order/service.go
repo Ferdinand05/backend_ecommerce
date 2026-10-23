@@ -41,6 +41,11 @@ type Service interface {
 		orderID uuid.UUID,
 	) (models.Order, error)
 
+	FindStatusHistories(
+		ctx context.Context,
+		orderID uuid.UUID,
+	) ([]models.OrderStatusHistory, error)
+
 	FindAll(
 		ctx context.Context,
 		filter OrderFilter,
@@ -59,6 +64,7 @@ type service struct {
 	db            *gorm.DB
 	cartService   cartitems.Service
 	inventoryRepo inventory.InventoryRepository
+	movementRepo  inventory.StockMovementRepository
 	variantRepo   productvariant.Repository
 	shippingSvc   shipping.Service
 }
@@ -70,12 +76,14 @@ func NewService(
 	inventoryRepo inventory.InventoryRepository,
 	variantRepo productvariant.Repository,
 	shippingSvc shipping.Service,
+	movementRepo inventory.StockMovementRepository,
 ) *service {
 	return &service{
 		repository:    repository,
 		db:            db,
 		cartService:   cartService,
 		inventoryRepo: inventoryRepo,
+		movementRepo:  movementRepo,
 		variantRepo:   variantRepo,
 		shippingSvc:   shippingSvc,
 	}
@@ -101,6 +109,13 @@ func (s *service) FindMyOrder(ctx context.Context, userID uuid.UUID, orderID uui
 
 func (s *service) FindByID(ctx context.Context, orderID uuid.UUID) (models.Order, error) {
 	return s.repository.FindByID(ctx, orderID)
+}
+
+func (s *service) FindStatusHistories(
+	ctx context.Context,
+	orderID uuid.UUID,
+) ([]models.OrderStatusHistory, error) {
+	return s.repository.FindStatusHistories(ctx, orderID)
 }
 
 func (s *service) FindAll(ctx context.Context, filter OrderFilter) (OrderListResult, error) {

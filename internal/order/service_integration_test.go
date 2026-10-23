@@ -21,7 +21,7 @@ import (
 func TestOrderServiceUpdateStatusSuccess(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewRepository(db)
-	svc := NewService(repo, db, nil, nil, nil, nil)
+	svc := NewService(repo, db, nil, nil, nil, nil, nil)
 
 	user := seedUser(t, db)
 	order := models.Order{
@@ -69,7 +69,7 @@ func TestOrderServiceUpdateStatusSuccess(t *testing.T) {
 func TestOrderServiceUpdateStatusRejectsInvalidTransition(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewRepository(db)
-	svc := NewService(repo, db, nil, nil, nil, nil)
+	svc := NewService(repo, db, nil, nil, nil, nil, nil)
 
 	user := seedUser(t, db)
 	order := models.Order{
@@ -105,7 +105,7 @@ func TestOrderServiceUpdateStatusRejectsInvalidTransition(t *testing.T) {
 
 func TestOrderServiceUpdateStatusNotFound(t *testing.T) {
 	db := setupTestDB(t)
-	svc := NewService(NewRepository(db), db, nil, nil, nil, nil)
+	svc := NewService(NewRepository(db), db, nil, nil, nil, nil, nil)
 
 	_, err := svc.UpdateStatus(context.Background(), uuid.New(), OrderStatusPaid, nil)
 	if !errors.Is(err, ErrorOrderNotFound) {
@@ -160,6 +160,7 @@ func TestOrderServiceCreateOrderSuccess(t *testing.T) {
 		inventory.NewInventoryRepository(db),
 		productvariant.NewRepository(db),
 		ship,
+		inventory.NewStockMovementRepository(db),
 	)
 
 	created, err := svc.CreateOrder(context.Background(), user.ID, validCreateOrderRequest())
@@ -236,13 +237,27 @@ func TestOrderServiceCreateOrderSuccess(t *testing.T) {
 		t.Fatalf("reserved_quantity = %d, want 2", inv.ReservedQuantity)
 	}
 
-	// Order, item, alamat, history tersimpan.
+	// Order, item, alamat, history, jurnal RESERVE tersimpan.
 	var itemCount, addressCount, historyCount int64
 	db.Model(&models.OrderItem{}).Where("order_id = ?", created.ID).Count(&itemCount)
 	db.Model(&models.OrderAddress{}).Where("order_id = ?", created.ID).Count(&addressCount)
 	db.Model(&models.OrderStatusHistory{}).Where("order_id = ?", created.ID).Count(&historyCount)
 	if itemCount != 1 || addressCount != 1 || historyCount != 1 {
 		t.Fatalf("counts item/address/history = %d/%d/%d, want 1/1/1", itemCount, addressCount, historyCount)
+	}
+
+	var movements []models.StockMovement
+	if err := db.Where("inventory_item_id = ?", inv.ID).Find(&movements).Error; err != nil {
+		t.Fatalf("load movements: %v", err)
+	}
+	if len(movements) != 1 {
+		t.Fatalf("movements = %d, want 1 RESERVE", len(movements))
+	}
+	if movements[0].Type != "RESERVE" || movements[0].Quantity != -2 {
+		t.Fatalf("movement = %s/%d, want RESERVE/-2", movements[0].Type, movements[0].Quantity)
+	}
+	if movements[0].ReferenceID == nil || *movements[0].ReferenceID != created.ID {
+		t.Fatalf("reference_id = %v, want order id", movements[0].ReferenceID)
 	}
 
 	// Cart dikosongkan setelah commit.
@@ -270,6 +285,7 @@ func TestOrderServiceCreateOrderInsufficientStock(t *testing.T) {
 		inventory.NewInventoryRepository(db),
 		productvariant.NewRepository(db),
 		ship,
+		inventory.NewStockMovementRepository(db),
 	)
 
 	_, err := svc.CreateOrder(context.Background(), user.ID, validCreateOrderRequest())
@@ -293,5 +309,46 @@ func TestOrderServiceCreateOrderInsufficientStock(t *testing.T) {
 
 	if cart.cleared {
 		t.Fatal("cart tidak boleh dikosongkan saat order gagal")
+	}
+}
+
+func TestOrderServiceFindStatusHistories(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+
+	user := seedUser(t, db)
+	variant := seedVariant(t, db)
+	seedInventoryItem(t, db, variant.ID, 10)
+
+	cart := &stubCartService{cart: createOrderCart(variant.ID, 1)}
+	ship := &stubShippingService{rates: []shipping.ShippingRate{
+		{CourierCode: "jne", CourierName: "JNE", CourierServiceCode: "REG", CourierServiceName: "Regular", Price: 20000},
+	}}
+
+	svc := NewService(
+		repo,
+		db,
+		cart,
+		inventory.NewInventoryRepository(db),
+		productvariant.NewRepository(db),
+		ship,
+		inventory.NewStockMovementRepository(db),
+	)
+
+	created, err := svc.CreateOrder(context.Background(), user.ID, validCreateOrderRequest())
+	if err != nil {
+		t.Fatalf("CreateOrder() error = %v", err)
+	}
+
+	histories, err := svc.FindStatusHistories(context.Background(), created.ID)
+	if err != nil {
+		t.Fatalf("FindStatusHistories() error = %v", err)
+	}
+	if len(histories) != 1 || histories[0].Status != "PENDING" {
+		t.Fatalf("histories = %+v, want satu entry PENDING", histories)
+	}
+
+	if _, err := svc.FindStatusHistories(context.Background(), uuid.New()); !errors.Is(err, ErrorOrderNotFound) {
+		t.Fatalf("err = %v, want ErrorOrderNotFound", err)
 	}
 }

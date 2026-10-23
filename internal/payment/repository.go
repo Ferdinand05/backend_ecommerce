@@ -27,6 +27,9 @@ type Repository interface {
 	MarkPaid(ctx context.Context, paymentID uuid.UUID, paidAt *time.Time) (bool, error)
 	MarkExpiredPending(ctx context.Context, paymentID uuid.UUID) (bool, error)
 	FailOtherPendingByOrderID(ctx context.Context, orderID uuid.UUID, excludePaymentID uuid.UUID) error
+
+	// FindAll: list global untuk admin, paging + filter status opsional.
+	FindAll(ctx context.Context, status *string, page, pageSize int) ([]models.Payment, int64, error)
 }
 
 type repository struct {
@@ -278,4 +281,35 @@ func (r *repository) FailOtherPendingByOrderID(
 	}
 
 	return nil
+}
+
+func (r *repository) FindAll(
+	ctx context.Context,
+	status *string,
+	page, pageSize int,
+) ([]models.Payment, int64, error) {
+
+	db := database.GetDB(ctx, r.db).WithContext(ctx).Model(&models.Payment{})
+
+	if status != nil {
+		db = db.Where("status = ?", *status)
+	}
+
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("counting payments: %w", err)
+	}
+
+	var payments []models.Payment
+	err := db.
+		Order("created_at DESC").
+		Order("id DESC").
+		Limit(pageSize).
+		Offset((page - 1) * pageSize).
+		Find(&payments).Error
+	if err != nil {
+		return nil, 0, fmt.Errorf("finding payments: %w", err)
+	}
+
+	return payments, total, nil
 }

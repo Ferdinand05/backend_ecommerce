@@ -35,6 +35,8 @@ type Repository interface {
 
 	CreateStatusHistory(ctx context.Context, history *models.OrderStatusHistory) error
 
+	FindStatusHistories(ctx context.Context, orderID uuid.UUID) ([]models.OrderStatusHistory, error)
+
 	UpdateStatus(ctx context.Context, orderID uuid.UUID, status string) error
 }
 
@@ -208,6 +210,36 @@ func (r *repository) CreateStatusHistory(ctx context.Context, history *models.Or
 	}
 
 	return nil
+}
+
+// FindStatusHistories read-only untuk admin: order harus ada, history
+// urut kronologis.
+func (r *repository) FindStatusHistories(
+	ctx context.Context,
+	orderID uuid.UUID,
+) ([]models.OrderStatusHistory, error) {
+
+	db := database.GetDB(ctx, r.db).WithContext(ctx)
+
+	var count int64
+	if err := db.Model(&models.Order{}).
+		Where("id = ?", orderID).
+		Count(&count).Error; err != nil {
+		return nil, fmt.Errorf("checking order:%w", err)
+	}
+	if count == 0 {
+		return nil, ErrorOrderNotFound
+	}
+
+	var histories []models.OrderStatusHistory
+	if err := db.
+		Where("order_id = ?", orderID).
+		Order("created_at ASC").
+		Find(&histories).Error; err != nil {
+		return nil, fmt.Errorf("finding order status histories:%w", err)
+	}
+
+	return histories, nil
 }
 
 func (r *repository) UpdateStatus(ctx context.Context, orderID uuid.UUID, status string) error {

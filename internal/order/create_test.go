@@ -184,7 +184,7 @@ func createOrderCart(variantID uuid.UUID, qty int) cartitems.CartResponse {
 }
 
 func createOrderService(cart *stubCartService, inv inventory.InventoryRepository, variants productvariant.Repository, ship *stubShippingService) *service {
-	return NewService(&fakeRepo{}, nil, cart, inv, variants, ship)
+	return NewService(&fakeRepo{}, nil, cart, inv, variants, ship, nil)
 }
 
 // --- tests (jalur sebelum transaksi; db nil tidak boleh disentuh) ---

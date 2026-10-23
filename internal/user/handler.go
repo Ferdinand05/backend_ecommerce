@@ -100,12 +100,18 @@ func (h *Handler) Create(c *gin.Context) {
 }
 
 func ToUserResponse(u models.User) UserResponse {
+	var role *RoleResponse
+	if u.Role.ID != uuid.Nil {
+		role = &RoleResponse{ID: u.Role.ID, Name: u.Role.Name}
+	}
+
 	return UserResponse{
 		ID:              u.ID,
 		Email:           u.Email,
 		FirstName:       u.FirstName,
 		LastName:        u.LastName,
 		Phone:           u.Phone,
+		Role:            role,
 		Status:          u.Status,
 		EmailVerifiedAt: u.EmailVerifiedAt,
 		LastLoginAt:     u.LastLoginAt,

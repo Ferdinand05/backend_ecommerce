@@ -22,6 +22,11 @@ type fakeHandlerService struct {
 	createResult  CreatePaymentResult
 	createErr     error
 	createCalls   int
+
+	listStatus *PaymentStatus
+	listResult PaymentListResponse
+	listErr    error
+	listCalls  int
 }
 
 func (f *fakeHandlerService) CreatePayment(ctx context.Context, userID uuid.UUID, orderID uuid.UUID) (CreatePaymentResult, error) {
@@ -37,10 +42,19 @@ func (f *fakeHandlerService) HandleInvoiceCallback(ctx context.Context, cb Invoi
 	return f.res
 }
 
+func (f *fakeHandlerService) ListPayments(ctx context.Context, status *PaymentStatus, page, pageSize int) (PaymentListResponse, error) {
+	f.listCalls++
+	f.listStatus = status
+	if f.listErr != nil {
+		return PaymentListResponse{}, f.listErr
+	}
+	return f.listResult, nil
+}
+
 func newWebhookRouter(svc Service, token string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	RegisterRoutes(r.Group("/api/v1"), r.Group("/api/v1/me"), NewHandler(svc, token))
+	RegisterRoutes(r.Group("/api/v1"), r.Group("/api/v1/me"), r.Group("/api/v1/admin"), NewHandler(svc, token))
 	return r
 }
 
@@ -54,7 +68,7 @@ func newAuthedRouter(svc Service) *gin.Engine {
 		c.Next()
 	})
 
-	RegisterRoutes(r.Group("/api/v1"), r.Group("/api/v1/me"), NewHandler(svc, "secret-token"))
+	RegisterRoutes(r.Group("/api/v1"), r.Group("/api/v1/me"), r.Group("/api/v1/admin"), NewHandler(svc, "secret-token"))
 	return r
 }
 
@@ -243,4 +257,53 @@ func TestCreatePaymentHandlerMapsErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+// --- list payments (admin) ---
+
+func listPayments(r *gin.Engine, query string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/payments"+query, nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w
+}
+
+func TestListPaymentsHandlerRejectsInvalidStatus(t *testing.T) {
+	svc := &fakeHandlerService{}
+
+	w := listPayments(newAuthedRouter(svc), "?status=HACKED")
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+	if svc.listCalls != 0 {
+		t.Fatalf("service dipanggil %d kali, want 0", svc.listCalls)
+	}
+}
+
+func TestListPaymentsHandlerSuccess(t *testing.T) {
+	svc := &fakeHandlerService{listResult: PaymentListResponse{
+		Payments: []PaymentResponse{{ID: uuid.New(), Status: "PAID"}},
+		Meta:     PaymentListMeta{Total: 1, Page: 1, PageSize: 10},
+	}}
+
+	w := listPayments(newAuthedRouter(svc), "?status=PAID&page=1&page_size=10")
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	if svc.listCalls != 1 || svc.listStatus == nil || *svc.listStatus != PaymentStatusPaid {
+		t.Fatalf("service status filter = %v, calls = %d", svc.listStatus, svc.listCalls)
+	}
+}
+
+func TestListPaymentsHandlerDefaultPagination(t *testing.T) {
+	svc := &fakeHandlerService{}
+
+	w := listPayments(newAuthedRouter(svc), "")
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	_ = svc // default filter: service menerima status nil (lihat unit service test)
 }
