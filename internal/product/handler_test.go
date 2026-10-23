@@ -85,7 +85,10 @@ type productsEnvelope struct {
 func newTestRouter(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	RegisterRoutes(r.Group("/api/v1"), NewHandler(svc, fakeStorage{}))
+	public := r.Group("/api/v1")
+	admin := r.Group("/api/v1/admin")
+	RegisterPublicRoutes(public, NewHandler(svc, fakeStorage{}))
+	RegisterAdminRoutes(admin, NewHandler(svc, fakeStorage{}))
 	return r
 }
 
@@ -253,7 +256,7 @@ func TestHandlerCreate(t *testing.T) {
 	categoryID := uuid.New()
 	svc := &fakeService{createRes: models.Product{ID: uuid.New(), Name: "Laptop", Slug: "laptop"}}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/products",
+	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/admin/products",
 		`{"category_id":"`+categoryID.String()+`","name":"Laptop"}`)
 
 	if w.Code != http.StatusCreated {
@@ -271,7 +274,7 @@ func TestHandlerCreate(t *testing.T) {
 }
 
 func TestHandlerCreateInvalidBody(t *testing.T) {
-	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPost, "/api/v1/products", `{}`)
+	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPost, "/api/v1/admin/products", `{}`)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
@@ -282,7 +285,7 @@ func TestHandlerCreateSlugConflict(t *testing.T) {
 	categoryID := uuid.New()
 	svc := &fakeService{createErr: ErrorProductSlugAlreadyExists}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/products",
+	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/admin/products",
 		`{"category_id":"`+categoryID.String()+`","name":"Laptop"}`)
 
 	if w.Code != http.StatusConflict {
@@ -294,7 +297,7 @@ func TestHandlerCreateCategoryNotFound(t *testing.T) {
 	categoryID := uuid.New()
 	svc := &fakeService{createErr: category.ErrorCategoryNotFound}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/products",
+	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/admin/products",
 		`{"category_id":"`+categoryID.String()+`","name":"Laptop"}`)
 
 	if w.Code != http.StatusNotFound {
@@ -306,7 +309,7 @@ func TestHandlerCreateError(t *testing.T) {
 	categoryID := uuid.New()
 	svc := &fakeService{createErr: errors.New("boom")}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/products",
+	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/admin/products",
 		`{"category_id":"`+categoryID.String()+`","name":"Laptop"}`)
 
 	if w.Code != http.StatusInternalServerError {
@@ -319,7 +322,7 @@ func TestHandlerUpdate(t *testing.T) {
 	categoryID := uuid.New()
 	svc := &fakeService{updateRes: models.Product{ID: id, Name: "Laptop", Slug: "laptop"}}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodPut, "/api/v1/products/"+id.String(),
+	w := doRequest(t, newTestRouter(svc), http.MethodPut, "/api/v1/admin/products/"+id.String(),
 		`{"category_id":"`+categoryID.String()+`","name":"Laptop"}`)
 
 	if w.Code != http.StatusOK {
@@ -339,7 +342,7 @@ func TestHandlerUpdate(t *testing.T) {
 func TestHandlerUpdateInvalidUUID(t *testing.T) {
 	categoryID := uuid.New()
 
-	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPut, "/api/v1/products/not-a-uuid",
+	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPut, "/api/v1/admin/products/not-a-uuid",
 		`{"category_id":"`+categoryID.String()+`","name":"Laptop"}`)
 
 	if w.Code != http.StatusBadRequest {
@@ -348,7 +351,7 @@ func TestHandlerUpdateInvalidUUID(t *testing.T) {
 }
 
 func TestHandlerUpdateInvalidBody(t *testing.T) {
-	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPut, "/api/v1/products/"+uuid.New().String(), `{}`)
+	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPut, "/api/v1/admin/products/"+uuid.New().String(), `{}`)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
@@ -359,7 +362,7 @@ func TestHandlerUpdateNotFound(t *testing.T) {
 	categoryID := uuid.New()
 	svc := &fakeService{updateErr: ErrorProductNotFound}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodPut, "/api/v1/products/"+uuid.New().String(),
+	w := doRequest(t, newTestRouter(svc), http.MethodPut, "/api/v1/admin/products/"+uuid.New().String(),
 		`{"category_id":"`+categoryID.String()+`","name":"Laptop"}`)
 
 	if w.Code != http.StatusNotFound {
@@ -371,7 +374,7 @@ func TestHandlerUpdateSlugConflict(t *testing.T) {
 	categoryID := uuid.New()
 	svc := &fakeService{updateErr: ErrorProductSlugAlreadyExists}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodPut, "/api/v1/products/"+uuid.New().String(),
+	w := doRequest(t, newTestRouter(svc), http.MethodPut, "/api/v1/admin/products/"+uuid.New().String(),
 		`{"category_id":"`+categoryID.String()+`","name":"Laptop"}`)
 
 	if w.Code != http.StatusConflict {
@@ -380,7 +383,7 @@ func TestHandlerUpdateSlugConflict(t *testing.T) {
 }
 
 func TestHandlerDelete(t *testing.T) {
-	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodDelete, "/api/v1/products/"+uuid.New().String(), "")
+	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodDelete, "/api/v1/admin/products/"+uuid.New().String(), "")
 
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusNoContent)
@@ -390,7 +393,7 @@ func TestHandlerDelete(t *testing.T) {
 func TestHandlerDeleteNotFound(t *testing.T) {
 	svc := &fakeService{deleteErr: ErrorProductNotFound}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodDelete, "/api/v1/products/"+uuid.New().String(), "")
+	w := doRequest(t, newTestRouter(svc), http.MethodDelete, "/api/v1/admin/products/"+uuid.New().String(), "")
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusNotFound)

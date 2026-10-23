@@ -61,7 +61,10 @@ type imagesEnvelope struct {
 func newTestRouter(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	RegisterRoutes(r.Group("/api/v1"), NewHandler(svc))
+	public := r.Group("/api/v1")
+	admin := r.Group("/api/v1/admin")
+	RegisterPublicRoutes(public, NewHandler(svc))
+	RegisterAdminRoutes(admin, NewHandler(svc))
 	return r
 }
 
@@ -114,7 +117,7 @@ func TestHandlerUploadProductImage(t *testing.T) {
 	svc := &fakeService{uploadRes: ProductImageResponse{ID: uuid.New(), ProductID: productID, URL: "https://cdn.test/products/x.png"}}
 
 	body, contentType := multipartBody(t, pngMagic, map[string]string{"alt": "front", "sort_order": "1"})
-	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/products/"+productID.String()+"/images", contentType, body)
+	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/admin/products/"+productID.String()+"/images", contentType, body)
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusCreated)
@@ -136,7 +139,7 @@ func TestHandlerUploadVariantImage(t *testing.T) {
 	svc := &fakeService{uploadRes: ProductImageResponse{ID: uuid.New(), ProductID: productID, URL: "https://cdn.test/products/x.webp"}}
 
 	body, contentType := multipartBody(t, pngMagic, nil)
-	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/products/"+productID.String()+"/variants/"+variantID.String()+"/images", contentType, body)
+	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/admin/products/"+productID.String()+"/variants/"+variantID.String()+"/images", contentType, body)
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusCreated)
@@ -145,7 +148,7 @@ func TestHandlerUploadVariantImage(t *testing.T) {
 
 func TestHandlerUploadMissingFile(t *testing.T) {
 	body := "alt=front"
-	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPost, "/api/v1/products/"+uuid.New().String()+"/images", "application/x-www-form-urlencoded", body)
+	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPost, "/api/v1/admin/products/"+uuid.New().String()+"/images", "application/x-www-form-urlencoded", body)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
@@ -156,7 +159,7 @@ func TestHandlerUploadUnsupportedType(t *testing.T) {
 	svc := &fakeService{uploadErr: ErrorUnsupportedImageType}
 
 	body, contentType := multipartBody(t, []byte("just text, not an image"), nil)
-	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/products/"+uuid.New().String()+"/images", contentType, body)
+	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/admin/products/"+uuid.New().String()+"/images", contentType, body)
 
 	if w.Code != http.StatusUnsupportedMediaType {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusUnsupportedMediaType)
@@ -167,7 +170,7 @@ func TestHandlerUploadTooLarge(t *testing.T) {
 	huge := make([]byte, maxImageSize+1)
 
 	body, contentType := multipartBody(t, huge, nil)
-	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPost, "/api/v1/products/"+uuid.New().String()+"/images", contentType, body)
+	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPost, "/api/v1/admin/products/"+uuid.New().String()+"/images", contentType, body)
 
 	if w.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusRequestEntityTooLarge)
@@ -176,7 +179,7 @@ func TestHandlerUploadTooLarge(t *testing.T) {
 
 func TestHandlerUploadInvalidProductID(t *testing.T) {
 	body, contentType := multipartBody(t, pngMagic, nil)
-	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPost, "/api/v1/products/not-a-uuid/images", contentType, body)
+	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPost, "/api/v1/admin/products/not-a-uuid/images", contentType, body)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
@@ -185,7 +188,7 @@ func TestHandlerUploadInvalidProductID(t *testing.T) {
 
 func TestHandlerUploadInvalidVariantID(t *testing.T) {
 	body, contentType := multipartBody(t, pngMagic, nil)
-	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPost, "/api/v1/products/"+uuid.New().String()+"/variants/not-a-uuid/images", contentType, body)
+	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPost, "/api/v1/admin/products/"+uuid.New().String()+"/variants/not-a-uuid/images", contentType, body)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
@@ -196,7 +199,7 @@ func TestHandlerUploadProductNotFound(t *testing.T) {
 	svc := &fakeService{uploadErr: product.ErrorProductNotFound}
 
 	body, contentType := multipartBody(t, pngMagic, nil)
-	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/products/"+uuid.New().String()+"/images", contentType, body)
+	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/admin/products/"+uuid.New().String()+"/images", contentType, body)
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusNotFound)
@@ -207,7 +210,7 @@ func TestHandlerUploadError(t *testing.T) {
 	svc := &fakeService{uploadErr: errors.New("boom")}
 
 	body, contentType := multipartBody(t, pngMagic, nil)
-	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/products/"+uuid.New().String()+"/images", contentType, body)
+	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/admin/products/"+uuid.New().String()+"/images", contentType, body)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusInternalServerError)
@@ -287,7 +290,7 @@ func TestHandlerFindProductImageByIDNotFound(t *testing.T) {
 }
 
 func TestHandlerDeleteProductImage(t *testing.T) {
-	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodDelete, "/api/v1/products/"+uuid.New().String()+"/images/"+uuid.New().String(), "", "")
+	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodDelete, "/api/v1/admin/products/"+uuid.New().String()+"/images/"+uuid.New().String(), "", "")
 
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusNoContent)
@@ -297,7 +300,7 @@ func TestHandlerDeleteProductImage(t *testing.T) {
 func TestHandlerDeleteProductImageNotFound(t *testing.T) {
 	svc := &fakeService{deleteErr: ErrorProductImageNotFound}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodDelete, "/api/v1/products/"+uuid.New().String()+"/images/"+uuid.New().String(), "", "")
+	w := doRequest(t, newTestRouter(svc), http.MethodDelete, "/api/v1/admin/products/"+uuid.New().String()+"/images/"+uuid.New().String(), "", "")
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusNotFound)
@@ -305,7 +308,7 @@ func TestHandlerDeleteProductImageNotFound(t *testing.T) {
 }
 
 func TestHandlerDeleteVariantImage(t *testing.T) {
-	path := "/api/v1/products/" + uuid.New().String() + "/variants/" + uuid.New().String() + "/images/" + uuid.New().String()
+	path := "/api/v1/admin/products/" + uuid.New().String() + "/variants/" + uuid.New().String() + "/images/" + uuid.New().String()
 	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodDelete, path, "", "")
 
 	if w.Code != http.StatusNoContent {

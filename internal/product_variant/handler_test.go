@@ -62,7 +62,10 @@ type variantsEnvelope struct {
 func newTestRouter(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	RegisterRoutes(r.Group("/api/v1"), NewHandler(svc))
+	public := r.Group("/api/v1")
+	admin := r.Group("/api/v1/admin")
+	RegisterPublicRoutes(public, NewHandler(svc))
+	RegisterAdminRoutes(admin, NewHandler(svc))
 	return r
 }
 
@@ -179,7 +182,7 @@ func TestHandlerCreate(t *testing.T) {
 		Price:     decimal.NewFromInt(15000000),
 	}}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/products/"+productID.String()+"/variants",
+	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/admin/products/"+productID.String()+"/variants",
 		`{"sku":"LAP-001","name":"16GB","price":15000000,"weight_grams":1500}`)
 
 	if w.Code != http.StatusCreated {
@@ -197,7 +200,7 @@ func TestHandlerCreate(t *testing.T) {
 }
 
 func TestHandlerCreateInvalidBody(t *testing.T) {
-	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPost, "/api/v1/products/"+uuid.New().String()+"/variants", `{}`)
+	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPost, "/api/v1/admin/products/"+uuid.New().String()+"/variants", `{}`)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
@@ -205,7 +208,7 @@ func TestHandlerCreateInvalidBody(t *testing.T) {
 }
 
 func TestHandlerCreateInvalidProductID(t *testing.T) {
-	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPost, "/api/v1/products/not-a-uuid/variants",
+	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPost, "/api/v1/admin/products/not-a-uuid/variants",
 		`{"sku":"LAP-001","name":"16GB","price":15000000,"weight_grams":1500}`)
 
 	if w.Code != http.StatusBadRequest {
@@ -216,7 +219,7 @@ func TestHandlerCreateInvalidProductID(t *testing.T) {
 func TestHandlerCreateSKUConflict(t *testing.T) {
 	svc := &fakeService{createErr: ErrorVariantSKUAlreadyExists}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/products/"+uuid.New().String()+"/variants",
+	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/admin/products/"+uuid.New().String()+"/variants",
 		`{"sku":"LAP-001","name":"16GB","price":15000000,"weight_grams":1500}`)
 
 	if w.Code != http.StatusConflict {
@@ -227,7 +230,7 @@ func TestHandlerCreateSKUConflict(t *testing.T) {
 func TestHandlerCreateProductNotFound(t *testing.T) {
 	svc := &fakeService{createErr: product.ErrorProductNotFound}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/products/"+uuid.New().String()+"/variants",
+	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/admin/products/"+uuid.New().String()+"/variants",
 		`{"sku":"LAP-001","name":"16GB","price":15000000,"weight_grams":1500}`)
 
 	if w.Code != http.StatusNotFound {
@@ -238,7 +241,7 @@ func TestHandlerCreateProductNotFound(t *testing.T) {
 func TestHandlerCreateError(t *testing.T) {
 	svc := &fakeService{createErr: errors.New("boom")}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/products/"+uuid.New().String()+"/variants",
+	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/admin/products/"+uuid.New().String()+"/variants",
 		`{"sku":"LAP-001","name":"16GB","price":15000000,"weight_grams":1500}`)
 
 	if w.Code != http.StatusInternalServerError {
@@ -258,7 +261,7 @@ func TestHandlerCreateInvalidWeight(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPost, "/api/v1/products/"+uuid.New().String()+"/variants", tt.body)
+			w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPost, "/api/v1/admin/products/"+uuid.New().String()+"/variants", tt.body)
 
 			if w.Code != http.StatusBadRequest {
 				t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
@@ -270,7 +273,7 @@ func TestHandlerCreateInvalidWeight(t *testing.T) {
 func TestHandlerCreateInvalidWeightError(t *testing.T) {
 	svc := &fakeService{createErr: ErrorInvalidWeightGrams}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/products/"+uuid.New().String()+"/variants",
+	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/admin/products/"+uuid.New().String()+"/variants",
 		`{"sku":"LAP-001","name":"16GB","price":15000000,"weight_grams":1500}`)
 
 	if w.Code != http.StatusBadRequest {
@@ -281,7 +284,7 @@ func TestHandlerCreateInvalidWeightError(t *testing.T) {
 func TestHandlerUpdateInvalidWeightError(t *testing.T) {
 	svc := &fakeService{updateErr: ErrorInvalidWeightGrams}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodPut, "/api/v1/products/"+uuid.New().String()+"/variants/"+uuid.New().String(),
+	w := doRequest(t, newTestRouter(svc), http.MethodPut, "/api/v1/admin/products/"+uuid.New().String()+"/variants/"+uuid.New().String(),
 		`{"sku":"LAP-002","name":"32GB","price":20000000,"weight_grams":2000}`)
 
 	if w.Code != http.StatusBadRequest {
@@ -294,7 +297,7 @@ func TestHandlerUpdate(t *testing.T) {
 	id := uuid.New()
 	svc := &fakeService{updateRes: models.ProductVariant{ID: id, ProductID: productID, SKU: "LAP-002"}}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodPut, "/api/v1/products/"+productID.String()+"/variants/"+id.String(),
+	w := doRequest(t, newTestRouter(svc), http.MethodPut, "/api/v1/admin/products/"+productID.String()+"/variants/"+id.String(),
 		`{"sku":"LAP-002","name":"32GB","price":20000000,"weight_grams":2000}`)
 
 	if w.Code != http.StatusOK {
@@ -312,7 +315,7 @@ func TestHandlerUpdate(t *testing.T) {
 }
 
 func TestHandlerUpdateInvalidVariantID(t *testing.T) {
-	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPut, "/api/v1/products/"+uuid.New().String()+"/variants/not-a-uuid",
+	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPut, "/api/v1/admin/products/"+uuid.New().String()+"/variants/not-a-uuid",
 		`{"sku":"LAP-002","name":"32GB","price":20000000,"weight_grams":2000}`)
 
 	if w.Code != http.StatusBadRequest {
@@ -321,7 +324,7 @@ func TestHandlerUpdateInvalidVariantID(t *testing.T) {
 }
 
 func TestHandlerUpdateInvalidBody(t *testing.T) {
-	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPut, "/api/v1/products/"+uuid.New().String()+"/variants/"+uuid.New().String(), `{}`)
+	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPut, "/api/v1/admin/products/"+uuid.New().String()+"/variants/"+uuid.New().String(), `{}`)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
@@ -331,7 +334,7 @@ func TestHandlerUpdateInvalidBody(t *testing.T) {
 func TestHandlerUpdateNotFound(t *testing.T) {
 	svc := &fakeService{updateErr: ErrorProductVariantNotFound}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodPut, "/api/v1/products/"+uuid.New().String()+"/variants/"+uuid.New().String(),
+	w := doRequest(t, newTestRouter(svc), http.MethodPut, "/api/v1/admin/products/"+uuid.New().String()+"/variants/"+uuid.New().String(),
 		`{"sku":"LAP-002","name":"32GB","price":20000000,"weight_grams":2000}`)
 
 	if w.Code != http.StatusNotFound {
@@ -342,7 +345,7 @@ func TestHandlerUpdateNotFound(t *testing.T) {
 func TestHandlerUpdateSKUConflict(t *testing.T) {
 	svc := &fakeService{updateErr: ErrorVariantSKUAlreadyExists}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodPut, "/api/v1/products/"+uuid.New().String()+"/variants/"+uuid.New().String(),
+	w := doRequest(t, newTestRouter(svc), http.MethodPut, "/api/v1/admin/products/"+uuid.New().String()+"/variants/"+uuid.New().String(),
 		`{"sku":"LAP-002","name":"32GB","price":20000000,"weight_grams":2000}`)
 
 	if w.Code != http.StatusConflict {
@@ -353,7 +356,7 @@ func TestHandlerUpdateSKUConflict(t *testing.T) {
 func TestHandlerDelete(t *testing.T) {
 	productID := uuid.New()
 
-	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodDelete, "/api/v1/products/"+productID.String()+"/variants/"+uuid.New().String(), "")
+	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodDelete, "/api/v1/admin/products/"+productID.String()+"/variants/"+uuid.New().String(), "")
 
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusNoContent)
@@ -363,7 +366,7 @@ func TestHandlerDelete(t *testing.T) {
 func TestHandlerDeleteNotFound(t *testing.T) {
 	svc := &fakeService{deleteErr: ErrorProductVariantNotFound}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodDelete, "/api/v1/products/"+uuid.New().String()+"/variants/"+uuid.New().String(), "")
+	w := doRequest(t, newTestRouter(svc), http.MethodDelete, "/api/v1/admin/products/"+uuid.New().String()+"/variants/"+uuid.New().String(), "")
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusNotFound)

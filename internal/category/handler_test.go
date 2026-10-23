@@ -67,7 +67,10 @@ type categoriesEnvelope struct {
 func newTestRouter(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	RegisterRoutes(r.Group("/api/v1"), NewHandler(svc))
+	public := r.Group("/api/v1")
+	admin := r.Group("/api/v1/admin")
+	RegisterPublicRoutes(public, NewHandler(svc))
+	RegisterAdminRoutes(admin, NewHandler(svc))
 	return r
 }
 
@@ -198,7 +201,7 @@ func TestHandlerFindBySlugNotFound(t *testing.T) {
 func TestHandlerCreate(t *testing.T) {
 	svc := &fakeService{createRes: models.Category{ID: uuid.New(), Name: "Electronics", Slug: "electronics"}}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/categories", `{"name":"Electronics"}`)
+	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/admin/categories", `{"name":"Electronics"}`)
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusCreated)
@@ -215,7 +218,7 @@ func TestHandlerCreate(t *testing.T) {
 }
 
 func TestHandlerCreateInvalidBody(t *testing.T) {
-	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPost, "/api/v1/categories", `{}`)
+	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodPost, "/api/v1/admin/categories", `{}`)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
@@ -225,7 +228,7 @@ func TestHandlerCreateInvalidBody(t *testing.T) {
 func TestHandlerCreateError(t *testing.T) {
 	svc := &fakeService{createErr: errors.New("boom")}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/categories", `{"name":"Electronics"}`)
+	w := doRequest(t, newTestRouter(svc), http.MethodPost, "/api/v1/admin/categories", `{"name":"Electronics"}`)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusInternalServerError)
@@ -236,7 +239,7 @@ func TestHandlerUpdate(t *testing.T) {
 	id := uuid.New()
 	svc := &fakeService{updateRes: models.Category{ID: id, Name: "Electronics", Slug: "electronics"}}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodPut, "/api/v1/categories/"+id.String(), `{"name":"Electronics"}`)
+	w := doRequest(t, newTestRouter(svc), http.MethodPut, "/api/v1/admin/categories/"+id.String(), `{"name":"Electronics"}`)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
@@ -255,7 +258,7 @@ func TestHandlerUpdate(t *testing.T) {
 func TestHandlerUpdateNotFound(t *testing.T) {
 	svc := &fakeService{updateErr: ErrorCategoryNotFound}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodPut, "/api/v1/categories/"+uuid.New().String(), `{"name":"Electronics"}`)
+	w := doRequest(t, newTestRouter(svc), http.MethodPut, "/api/v1/admin/categories/"+uuid.New().String(), `{"name":"Electronics"}`)
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusNotFound)
@@ -263,7 +266,7 @@ func TestHandlerUpdateNotFound(t *testing.T) {
 }
 
 func TestHandlerDelete(t *testing.T) {
-	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodDelete, "/api/v1/categories/"+uuid.New().String(), "")
+	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodDelete, "/api/v1/admin/categories/"+uuid.New().String(), "")
 
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusNoContent)
@@ -273,7 +276,7 @@ func TestHandlerDelete(t *testing.T) {
 func TestHandlerDeleteNotFound(t *testing.T) {
 	svc := &fakeService{deleteErr: ErrorCategoryNotFound}
 
-	w := doRequest(t, newTestRouter(svc), http.MethodDelete, "/api/v1/categories/"+uuid.New().String(), "")
+	w := doRequest(t, newTestRouter(svc), http.MethodDelete, "/api/v1/admin/categories/"+uuid.New().String(), "")
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusNotFound)

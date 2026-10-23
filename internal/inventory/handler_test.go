@@ -67,12 +67,13 @@ type movementEnvelope struct {
 func newTestRouter(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	RegisterRoutes(r.Group("/api/v1"), r.Group("/api/v1/admin"), NewHandler(svc))
+	admin := r.Group("/api/v1/admin")
+	RegisterRoutes(admin, NewHandler(svc))
 	return r
 }
 
 func inventoryPath(productID, variantID uuid.UUID, suffix string) string {
-	return "/api/v1/products/" + productID.String() + "/variants/" + variantID.String() + "/inventory" + suffix
+	return "/api/v1/admin/products/" + productID.String() + "/variants/" + variantID.String() + "/inventory" + suffix
 }
 
 func doRequest(t *testing.T, r *gin.Engine, method, path, body string) *httptest.ResponseRecorder {
@@ -110,7 +111,7 @@ func TestHandlerGetInventory(t *testing.T) {
 }
 
 func TestHandlerGetInventoryInvalidUUID(t *testing.T) {
-	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodGet, "/api/v1/products/not-a-uuid/variants/"+uuid.New().String()+"/inventory", "")
+	w := doRequest(t, newTestRouter(&fakeService{}), http.MethodGet, "/api/v1/admin/products/not-a-uuid/variants/"+uuid.New().String()+"/inventory", "")
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)

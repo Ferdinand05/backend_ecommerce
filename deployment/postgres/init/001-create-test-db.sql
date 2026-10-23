@@ -1,1 +1,1 @@
-CREATE DATABASE ecommerce_app_test;
+SELECT 'CREATE DATABASE ecommerce_app_test' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'ecommerce_app_test')\gexec
