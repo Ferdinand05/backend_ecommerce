@@ -143,6 +143,31 @@ func Load() (Config, error) {
 		return Config{}, errors.New("BITESHIP_COURIERS is required")
 	}
 
+	biteshipOriginContactName := os.Getenv("BITESHIP_ORIGIN_CONTACT_NAME")
+	if biteshipOriginContactName == "" {
+		return Config{}, errors.New("BITESHIP_ORIGIN_CONTACT_NAME is required")
+	}
+
+	biteshipOriginContactPhone := os.Getenv("BITESHIP_ORIGIN_CONTACT_PHONE")
+	if biteshipOriginContactPhone == "" {
+		return Config{}, errors.New("BITESHIP_ORIGIN_CONTACT_PHONE is required")
+	}
+
+	biteshipOriginAddress := os.Getenv("BITESHIP_ORIGIN_ADDRESS")
+	if biteshipOriginAddress == "" {
+		return Config{}, errors.New("BITESHIP_ORIGIN_ADDRESS is required")
+	}
+
+	biteshipSignatureKey := os.Getenv("BITESHIP_SIGNATURE_KEY")
+	if biteshipSignatureKey == "" {
+		return Config{}, errors.New("BITESHIP_SIGNATURE_KEY is required")
+	}
+
+	biteshipSignatureSecret := os.Getenv("BITESHIP_SIGNATURE_SECRET")
+	if biteshipSignatureKey == "" {
+		return Config{}, errors.New("BITESHIP_SIGNATURE_SECRET is required")
+	}
+
 	xenditApiKey := os.Getenv("XENDIT_API_KEY")
 	if xenditApiKey == "" {
 		return Config{}, errors.New("XENDIT_API_KEY is required")
@@ -190,11 +215,16 @@ func Load() (Config, error) {
 			Password: redisPassword,
 		},
 		Biteship: BiteshipConfig{
-			ApiKey:       biteshipApiKey,
-			BaseURL:      biteshipBaseURL,
-			Timeout:      biteshipTimeout,
-			OriginAreaID: biteshipOriginAreaID,
-			Couriers:     biteshipCouriers,
+			ApiKey:             biteshipApiKey,
+			BaseURL:            biteshipBaseURL,
+			Timeout:            biteshipTimeout,
+			OriginAreaID:       biteshipOriginAreaID,
+			Couriers:           biteshipCouriers,
+			OriginContactName:  biteshipOriginContactName,
+			OriginContactPhone: biteshipOriginContactPhone,
+			OriginAddress:      biteshipOriginAddress,
+			SignatureKey:       biteshipSignatureKey,
+			SignatureSecret:    biteshipSignatureSecret,
 		},
 		Xendit: XenditConfig{
 			ApiKey:       xenditApiKey,

@@ -14,3 +14,56 @@ var (
 	ShipmentStatusReturned    ShipmentStatus = "RETURNED"
 	ShipmentStatusFailed      ShipmentStatus = "FAILED"
 )
+
+func (s ShipmentStatus) IsValid() bool {
+	switch s {
+	case ShipmentStatusPending,
+		ShipmentStatusConfirmed,
+		ShipmentStatusAllocated,
+		ShipmentStatusPickingUp,
+		ShipmentStatusPicked,
+		ShipmentStatusDroppingOff,
+		ShipmentStatusDelivered,
+		ShipmentStatusCancelled,
+		ShipmentStatusReturned,
+		ShipmentStatusFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+// CanTransition menjaga urutan status. Status provider (ALLOCATED dst.)
+// dipetakan webhook Biteship nanti; saat ini hanya PENDING -> CONFIRMED
+// yang dipakai aplikasi.
+func CanTransition(from, to ShipmentStatus) bool {
+	switch from {
+	case ShipmentStatusPending:
+		return to == ShipmentStatusConfirmed ||
+			to == ShipmentStatusCancelled ||
+			to == ShipmentStatusFailed
+
+	case ShipmentStatusConfirmed,
+		ShipmentStatusAllocated,
+		ShipmentStatusPickingUp,
+		ShipmentStatusPicked,
+		ShipmentStatusDroppingOff:
+		return to == ShipmentStatusAllocated ||
+			to == ShipmentStatusPickingUp ||
+			to == ShipmentStatusPicked ||
+			to == ShipmentStatusDroppingOff ||
+			to == ShipmentStatusDelivered ||
+			to == ShipmentStatusReturned ||
+			to == ShipmentStatusCancelled ||
+			to == ShipmentStatusFailed
+
+	case ShipmentStatusDelivered,
+		ShipmentStatusCancelled,
+		ShipmentStatusReturned,
+		ShipmentStatusFailed:
+		return false
+
+	default:
+		return false
+	}
+}

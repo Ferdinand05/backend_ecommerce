@@ -19,6 +19,7 @@ import (
 	productvariant "ferdinand/ecommerce/internal/product_variant"
 	"ferdinand/ecommerce/internal/role"
 	"ferdinand/ecommerce/internal/router"
+	"ferdinand/ecommerce/internal/shipment"
 	"ferdinand/ecommerce/internal/shipping"
 	"ferdinand/ecommerce/internal/shipping/biteship"
 	"ferdinand/ecommerce/internal/storage/cloudflare"
@@ -165,9 +166,23 @@ func main() {
 	checkoutService := checkout.NewService(cartService, inventoryItemRepo, productVariantRepo)
 	checkoutHandler := checkout.NewHandler(checkoutService)
 
+	shipmentRepo := shipment.NewRepository(db)
+	shipmentService := shipment.NewService(
+		shipmentRepo,
+		orderRepo,
+		biteshipProvider,
+		shipment.Origin{
+			Name:    cfg.Biteship.OriginContactName,
+			Phone:   cfg.Biteship.OriginContactPhone,
+			Address: cfg.Biteship.OriginAddress,
+			AreaID:  cfg.Biteship.OriginAreaID,
+		},
+	)
+	shipmentHandler := shipment.NewHandler(shipmentService)
+
 	xenditClient := paymentxendit.NewClient(cfg.Xendit.ApiKey)
 	paymentRepo := payment.NewRepository(db)
-	paymentService := payment.NewService(db, orderRepo, paymentRepo, inventoryItemRepo, stockMovementRepo, xenditClient)
+	paymentService := payment.NewService(db, orderRepo, paymentRepo, inventoryItemRepo, stockMovementRepo, xenditClient, shipmentService)
 	paymentHandler := payment.NewHandler(paymentService, cfg.Xendit.WebhookToken)
 
 	handlers := router.RouteHandlers{
@@ -184,6 +199,7 @@ func main() {
 		ShippingHandler:       shippingHandler,
 		CheckoutHandler:       checkoutHandler,
 		PaymentHandler:        paymentHandler,
+		ShipmentHandler:       shipmentHandler,
 	}
 
 	r := router.New(handlers, jwtSvc)

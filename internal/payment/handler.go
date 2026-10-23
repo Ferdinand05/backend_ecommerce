@@ -49,7 +49,9 @@ func (h *Handler) HandleInvoiceCallback(c *gin.Context) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	// Longgar: mencakup transaksi DB (termasuk pencatatan shipment)
+	// dan panggilan API provider setelah commit.
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
 
 	if err := h.service.HandleInvoiceCallback(ctx, cb); err != nil {

@@ -19,7 +19,7 @@ func TestWebhookUnknownPaymentIsNoop(t *testing.T) {
 	repo.latest = modelsPaymentForWebhook()
 
 	// FindByProviderInvoiceID & FindByExternalID sama-sama kosong.
-	svc := NewService(nil, &fakeOrderRepo{}, repo, nil, nil, &fakeXendit{})
+	svc := NewService(nil, &fakeOrderRepo{}, repo, nil, nil, &fakeXendit{}, nil)
 
 	err := svc.HandleInvoiceCallback(context.Background(), InvoiceCallback{
 		ID:         "inv-unknown",
@@ -42,7 +42,7 @@ func TestWebhookExternalIDMismatchRejected(t *testing.T) {
 	repo.payments[p.ID] = p
 	repo.latest = p
 
-	svc := NewService(nil, &fakeOrderRepo{}, repo, nil, nil, &fakeXendit{})
+	svc := NewService(nil, &fakeOrderRepo{}, repo, nil, nil, &fakeXendit{}, nil)
 
 	err := svc.HandleInvoiceCallback(context.Background(), InvoiceCallback{
 		ID:         "inv-1",
@@ -64,7 +64,7 @@ func TestWebhookAmountMismatchRejected(t *testing.T) {
 	repo := newFakePaymentRepo()
 	repo.payments[p.ID] = p
 
-	svc := NewService(nil, &fakeOrderRepo{}, repo, nil, nil, &fakeXendit{})
+	svc := NewService(nil, &fakeOrderRepo{}, repo, nil, nil, &fakeXendit{}, nil)
 
 	err := svc.HandleInvoiceCallback(context.Background(), InvoiceCallback{
 		ID:         "inv-1",
@@ -88,7 +88,7 @@ func TestWebhookStatusIgnoredWithoutChange(t *testing.T) {
 	repo := newFakePaymentRepo()
 	repo.payments[p.ID] = p
 
-	svc := NewService(nil, &fakeOrderRepo{}, repo, nil, nil, &fakeXendit{})
+	svc := NewService(nil, &fakeOrderRepo{}, repo, nil, nil, &fakeXendit{}, nil)
 
 	for _, status := range []string{"PENDING", "WEIRD_STATUS"} {
 		if err := svc.HandleInvoiceCallback(context.Background(), InvoiceCallback{

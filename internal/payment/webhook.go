@@ -109,7 +109,7 @@ func (s *service) finalizePaidCallback(
 		return ErrAmountMismatch
 	}
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		txCtx := database.InjectTx(ctx, tx)
 
 		// 1. Lock payment, periksa status terkini.
@@ -122,7 +122,8 @@ func (s *service) finalizePaidCallback(
 			// Callback replay yang sudah diproses — no-op idempotent.
 			slog.InfoContext(ctx, "webhook.payment_already_paid",
 				"payment_id", locked.ID)
-			return nil
+
+			return nil // recovery berjalan sekali, setelah transaksi selesai.
 		}
 
 		// 2. Lock order, periksa status terkini.
@@ -219,6 +220,12 @@ func (s *service) finalizePaidCallback(
 			return err
 		}
 
+		// 8. Catat shipment PENDING dalam transaksi yang sama: order
+		// sah dibayar, konfirmasi ke provider menyusul setelah commit.
+		if err := s.shipments.CreatePending(txCtx, ord); err != nil {
+			return err
+		}
+
 		slog.InfoContext(ctx, "webhook.payment_finalized",
 			"payment_id", locked.ID,
 			"order_id", ord.ID,
@@ -228,4 +235,26 @@ func (s *service) finalizePaidCallback(
 
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	// Setelah commit: buat order pengiriman di Biteship. Di luar
+	// transaksi DB; kegagalan tidak menggagalkan webhook karena
+	// payment sudah sah — shipment tinggal PENDING dan dipulihkan
+	// lewat replay webhook atau retry admin.
+	s.recoverShipment(ctx, p.OrderID)
+
+	return nil
+}
+
+// recoverShipment best-effort: kegagalan konfirmasi provider hanya
+// dicatat, tidak menggagalkan proses pemanggil.
+func (s *service) recoverShipment(ctx context.Context, orderID uuid.UUID) {
+	if err := s.shipments.RecoverPending(ctx, orderID); err != nil {
+		slog.ErrorContext(ctx, "shipment.recover_failed",
+			"order_id", orderID,
+			"error", err,
+		)
+	}
 }

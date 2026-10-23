@@ -44,6 +44,7 @@ type service struct {
 	inventoryRepo inventory.InventoryRepository
 	movementRepo  inventory.StockMovementRepository
 	xendit        xenditclient.Client
+	shipments     shipmentStarter
 }
 
 // orderReader diambil dari method yang tersedia di order.Repository;
@@ -55,6 +56,15 @@ type orderReader interface {
 	CreateStatusHistory(ctx context.Context, history *models.OrderStatusHistory) error
 }
 
+// shipmentStarter dibutuhkan webhook untuk mencatat shipment PENDING
+// di transaksi yang sama dengan finalisasi pembayaran dan mencoba
+// konfirmasinya ke provider setelah commit; diimplementasi
+// shipment.Service.
+type shipmentStarter interface {
+	CreatePending(ctx context.Context, ord models.Order) error
+	RecoverPending(ctx context.Context, orderID uuid.UUID) error
+}
+
 func NewService(
 	db *gorm.DB,
 	orderRepo orderReader,
@@ -62,6 +72,7 @@ func NewService(
 	inventoryRepo inventory.InventoryRepository,
 	movementRepo inventory.StockMovementRepository,
 	xendit xenditclient.Client,
+	shipments shipmentStarter,
 ) Service {
 	return &service{
 		db:            db,
@@ -70,6 +81,7 @@ func NewService(
 		inventoryRepo: inventoryRepo,
 		movementRepo:  movementRepo,
 		xendit:        xendit,
+		shipments:     shipments,
 	}
 }
 
