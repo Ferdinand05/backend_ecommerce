@@ -14,5 +14,6 @@ func RegisterRoutes(me *gin.RouterGroup, admin *gin.RouterGroup, handler *Handle
 
 	admin.GET("/shipments", handler.ListShipments)
 	admin.GET("/shipments/:shipment_id", handler.GetShipmentDetail)
+	admin.GET("/shipments/:shipment_id/tracking", handler.GetAdminTracking)
 	admin.POST("/shipments/:shipment_id/retry", handler.RetryShipment)
 }

@@ -49,6 +49,9 @@ type Service interface {
 
 	// GetShipmentDetail memuat shipment dan ringkasan order terkait.
 	GetShipmentDetail(ctx context.Context, shipmentID uuid.UUID) (ShipmentDetailResponse, error)
+
+	// GetAdminTrackingDetail memuat tracking detail lengkap dari Biteship (admin only).
+	GetAdminTrackingDetail(ctx context.Context, shipmentID uuid.UUID) (TrackingDetailResponse, error)
 }
 
 // ShipmentProvider adalah bagian provider pengiriman yang dipakai
@@ -56,6 +59,8 @@ type Service interface {
 type ShipmentProvider interface {
 	CreateOrder(ctx context.Context, req biteship.CreateOrderRequest) (biteship.CreateOrderResult, error)
 	GetTracking(ctx context.Context, waybillID string) ([]biteship.TrackingEvent, error)
+	GetTrackingDetail(ctx context.Context, trackingID string) (biteship.TrackingAPIResponse, error)
+	GetOrderDetail(ctx context.Context, orderID string) (biteship.OrderDetailResponse, error)
 }
 
 // Origin adalah identitas pengirim (gudang/toko) untuk order provider.
@@ -396,6 +401,77 @@ func (s *service) ensureOwner(ctx context.Context, shp models.Shipment, userID u
 	}
 
 	return nil
+}
+
+// GetAdminTrackingDetail mengambil tracking detail lengkap dari Biteship.
+func (s *service) GetAdminTrackingDetail(
+	ctx context.Context,
+	shipmentID uuid.UUID,
+) (TrackingDetailResponse, error) {
+
+	shp, err := s.repo.FindByID(ctx, shipmentID)
+	if err != nil {
+		if errors.Is(err, ErrShipmentNotFound) {
+			return TrackingDetailResponse{}, ErrShipmentNotFound
+		}
+		return TrackingDetailResponse{}, fmt.Errorf("find shipment: %w", err)
+	}
+
+	if shp.TrackingNumber == nil || *shp.TrackingNumber == "" {
+		return TrackingDetailResponse{}, fmt.Errorf("shipment has no tracking number")
+	}
+
+	tracking, err := s.provider.GetTrackingDetail(ctx, *shp.TrackingNumber)
+	if err != nil {
+		return TrackingDetailResponse{}, fmt.Errorf("biteship tracking: %w", err)
+	}
+
+	response := TrackingDetailResponse{
+		ID:        shp.ID,
+		WaybillID: tracking.WaybillID,
+		Status:    tracking.Status,
+		Link:      tracking.Link,
+		Courier: TrackingDetailCourier{
+			Company:           tracking.Courier.Company,
+			Type:              tracking.Courier.Type,
+			DriverName:        tracking.Courier.DriverName,
+			DriverPhone:       tracking.Courier.DriverPhone,
+			DriverPhotoURL:    tracking.Courier.DriverPhotoURL,
+			DriverPlateNumber: tracking.Courier.DriverPlateNumber,
+		},
+		Origin: TrackingDetailLocation{
+			ContactName: tracking.Origin.ContactName,
+			Address:     tracking.Origin.Address,
+		},
+		Destination: TrackingDetailLocation{
+			ContactName: tracking.Destination.ContactName,
+			Address:     tracking.Destination.Address,
+		},
+		History: make([]TrackingHistoryEvent, 0, len(tracking.History)),
+	}
+
+	for _, h := range tracking.History {
+		parsed, _ := time.Parse(time.RFC3339, h.UpdatedAt)
+		response.History = append(response.History, TrackingHistoryEvent{
+			Status:      h.Status,
+			Description: h.Note,
+			UpdatedAt:   parsed,
+		})
+	}
+
+	if shp.ProviderOrderID != nil && *shp.ProviderOrderID != "" {
+		order, err := s.provider.GetOrderDetail(ctx, *shp.ProviderOrderID)
+		if err == nil {
+			if order.Delivery.Datetime != "" {
+				deliveryTime, _ := time.Parse(time.RFC3339, order.Delivery.Datetime)
+				response.EstimatedDelivery = &deliveryTime
+			}
+		}
+	}
+
+	response.DeliveredAt = shp.DeliveredAt
+
+	return response, nil
 }
 
 // buildCreateOrderRequest menyusun request provider dari snapshot

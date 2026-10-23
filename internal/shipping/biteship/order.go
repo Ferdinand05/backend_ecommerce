@@ -108,14 +108,39 @@ type orderAPICourier struct {
 	Type      string `json:"type"`
 }
 
-type trackingAPIResponse struct {
-	History []trackingAPIEvent `json:"history"`
+type TrackingAPIResponse struct {
+	Success     bool                `json:"success"`
+	Message     string              `json:"message"`
+	ID          string              `json:"id"`
+	WaybillID   string              `json:"waybill_id"`
+	OrderID     string              `json:"order_id"`
+	Status      string              `json:"status"`
+	Link        string              `json:"link"`
+	Courier     trackingAPICourier  `json:"courier"`
+	Origin      trackingAPILocation `json:"origin"`
+	Destination trackingAPILocation `json:"destination"`
+	History     []trackingAPIEvent  `json:"history"`
+}
+
+type trackingAPICourier struct {
+	Company           string `json:"company"`
+	Type              string `json:"type"`
+	DriverName        string `json:"driver_name"`
+	DriverPhone       string `json:"driver_phone"`
+	DriverPhotoURL    string `json:"driver_photo_url"`
+	DriverPlateNumber string `json:"driver_plate_number"`
+}
+
+type trackingAPILocation struct {
+	ContactName string `json:"contact_name"`
+	Address     string `json:"address"`
 }
 
 type trackingAPIEvent struct {
-	Note      string `json:"note"`
-	Status    string `json:"status"`
-	UpdatedAt string `json:"updated_at"`
+	Note        string `json:"note"`
+	Status      string `json:"status"`
+	UpdatedAt   string `json:"updated_at"`
+	ServiceType string `json:"service_type"`
 }
 
 type biteshipErrorResponse struct {
@@ -193,12 +218,108 @@ func decodeOrderError(resp *http.Response) error {
 	}
 }
 
+type OrderDetailResponse struct {
+	Success     bool                   `json:"success"`
+	ID          string                 `json:"id"`
+	ShortID     string                 `json:"short_id"`
+	Status      string                 `json:"status"`
+	Price       int64                  `json:"price"`
+	Courier     orderDetailAPICourier  `json:"courier"`
+	Origin      orderDetailAPILocation `json:"origin"`
+	Destination orderDetailAPILocation `json:"destination"`
+	Delivery    orderDetailAPIDelivery `json:"delivery"`
+	Items       []orderDetailAPIItem   `json:"items"`
+}
+
+type orderDetailAPICourier struct {
+	TrackingID  string                   `json:"tracking_id"`
+	WaybillID   string                   `json:"waybill_id"`
+	Company     string                   `json:"company"`
+	Type        string                   `json:"type"`
+	Link        string                   `json:"link"`
+	RoutingCode string                   `json:"routing_code"`
+	History     []trackingAPIEvent       `json:"history"`
+	Insurance   *orderDetailAPIInsurance `json:"insurance"`
+}
+
+type orderDetailAPIInsurance struct {
+	Amount   int64  `json:"amount"`
+	Currency string `json:"currency"`
+	Note     string `json:"note"`
+}
+
+type orderDetailAPILocation struct {
+	ContactName  string                   `json:"contact_name"`
+	ContactPhone string                   `json:"contact_phone"`
+	Address      string                   `json:"address"`
+	PostalCode   int                      `json:"postal_code"`
+	Coordinate   orderDetailAPICoordinate `json:"coordinate"`
+}
+
+type orderDetailAPICoordinate struct {
+	Latitude  float64 `json:"latitude"`
+	Longitude float64 `json:"longitude"`
+}
+
+type orderDetailAPIDelivery struct {
+	Type     string `json:"type"`
+	Datetime string `json:"datetime"`
+	Distance int    `json:"distance"`
+}
+
+type orderDetailAPIItem struct {
+	Name     string `json:"name"`
+	Quantity int    `json:"quantity"`
+	Weight   int    `json:"weight"`
+	Value    int64  `json:"value"`
+}
+
+// GetOrder memanggil GET /v1/orders/:id.
+func (c *Client) GetOrder(
+	ctx context.Context,
+	orderID string,
+) (OrderDetailResponse, error) {
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		c.baseURL+"/v1/orders/"+orderID,
+		nil,
+	)
+	if err != nil {
+		return OrderDetailResponse{}, fmt.Errorf("create Biteship order request: %w", err)
+	}
+
+	req.Header.Set("Authorization", c.apiKey)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return OrderDetailResponse{}, fmt.Errorf("send Biteship order request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return OrderDetailResponse{}, fmt.Errorf(
+			"Biteship order returned HTTP status %d",
+			resp.StatusCode,
+		)
+	}
+
+	var result OrderDetailResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return OrderDetailResponse{}, fmt.Errorf("decode Biteship order response: %w", err)
+	}
+
+	return result, nil
+}
+
 // GetTracking memanggil GET /v1/trackings/:waybill_id. Waybill yang
 // belum tersedia (404) dianggap belum ada riwayat, bukan error.
 func (c *Client) GetTracking(
 	ctx context.Context,
 	waybillID string,
-) (trackingAPIResponse, error) {
+) (TrackingAPIResponse, error) {
 
 	req, err := http.NewRequestWithContext(
 		ctx,
@@ -207,7 +328,7 @@ func (c *Client) GetTracking(
 		nil,
 	)
 	if err != nil {
-		return trackingAPIResponse{}, fmt.Errorf("create Biteship tracking request: %w", err)
+		return TrackingAPIResponse{}, fmt.Errorf("create Biteship tracking request: %w", err)
 	}
 
 	req.Header.Set("Authorization", c.apiKey)
@@ -215,24 +336,24 @@ func (c *Client) GetTracking(
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return trackingAPIResponse{}, fmt.Errorf("send Biteship tracking request: %w", err)
+		return TrackingAPIResponse{}, fmt.Errorf("send Biteship tracking request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return trackingAPIResponse{}, nil
+		return TrackingAPIResponse{}, nil
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return trackingAPIResponse{}, fmt.Errorf(
+		return TrackingAPIResponse{}, fmt.Errorf(
 			"Biteship tracking returned HTTP status %d",
 			resp.StatusCode,
 		)
 	}
 
-	var result trackingAPIResponse
+	var result TrackingAPIResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return trackingAPIResponse{}, fmt.Errorf("decode Biteship tracking response: %w", err)
+		return TrackingAPIResponse{}, fmt.Errorf("decode Biteship tracking response: %w", err)
 	}
 
 	return result, nil

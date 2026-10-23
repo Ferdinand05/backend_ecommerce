@@ -112,6 +112,14 @@ func (f *fakeProvider) GetTracking(ctx context.Context, waybillID string) ([]bit
 	return nil, nil
 }
 
+func (f *fakeProvider) GetTrackingDetail(ctx context.Context, trackingID string) (biteship.TrackingAPIResponse, error) {
+	return biteship.TrackingAPIResponse{}, nil
+}
+
+func (f *fakeProvider) GetOrderDetail(ctx context.Context, orderID string) (biteship.OrderDetailResponse, error) {
+	return biteship.OrderDetailResponse{}, nil
+}
+
 func paidOrder(t *testing.T) models.Order {
 	t.Helper()
 
