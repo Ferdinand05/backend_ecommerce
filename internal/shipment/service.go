@@ -43,6 +43,12 @@ type Service interface {
 
 	// Track mengambil riwayat pelacakan live dari provider.
 	Track(ctx context.Context, userID, shipmentID uuid.UUID) (ShipmentTrackingResponse, error)
+
+	// ListShipments dipakai halaman admin; filter status opsional.
+	ListShipments(ctx context.Context, filter ShipmentFilter) (ShipmentListResponse, error)
+
+	// GetShipmentDetail memuat shipment dan ringkasan order terkait.
+	GetShipmentDetail(ctx context.Context, shipmentID uuid.UUID) (ShipmentDetailResponse, error)
 }
 
 // ShipmentProvider adalah bagian provider pengiriman yang dipakai
@@ -351,6 +357,30 @@ func (s *service) Track(
 	return response, nil
 }
 
+func (s *service) ListShipments(ctx context.Context, filter ShipmentFilter) (ShipmentListResponse, error) {
+	return s.repo.FindAll(ctx, filter)
+}
+
+func (s *service) GetShipmentDetail(ctx context.Context, shipmentID uuid.UUID) (ShipmentDetailResponse, error) {
+
+	shp, err := s.repo.FindByIDWithOrder(ctx, shipmentID)
+	if err != nil {
+		return ShipmentDetailResponse{}, err
+	}
+
+	return ShipmentDetailResponse{
+		Shipment: toShipmentResponse(*shp),
+		Order: OrderSummary{
+			ID:          shp.Order.ID,
+			UserID:      shp.Order.UserID,
+			OrderNumber: shp.Order.OrderNumber,
+			Status:      shp.Order.Status,
+			TotalAmount: shp.Order.TotalAmount,
+			CreatedAt:   shp.Order.CreatedAt,
+		},
+	}, nil
+}
+
 // ensureOwner memastikan shipment dimiliki order milik user; tidak
 // cocok diperlakukan sebagai not found agar tidak membocorkan
 // keberadaan shipment orang lain.
@@ -445,32 +475,5 @@ func toCreateShipmentResult(shp models.Shipment) CreateShipmentResult {
 		Status:         shp.Status,
 		TrackingNumber: shp.TrackingNumber,
 		TrackingURL:    shp.TrackingURL,
-	}
-}
-
-func toShipmentResponse(shp models.Shipment) ShipmentResponse {
-	return ShipmentResponse{
-		ID:              shp.ID,
-		OrderID:         shp.OrderID,
-		Provider:        shp.Provider,
-		ProviderOrderID: shp.ProviderOrderID,
-
-		CourierCompany: shp.CourierCompany,
-		CourierType:    shp.CourierType,
-		TrackingNumber: shp.TrackingNumber,
-		TrackingURL:    shp.TrackingURL,
-
-		Status:         shp.Status,
-		ProviderStatus: shp.ProviderStatus,
-
-		ShippingCost: shp.ShippingCost,
-		Currency:     shp.Currency,
-
-		ShippedAt:   shp.ShippedAt,
-		DeliveredAt: shp.DeliveredAt,
-		CancelledAt: shp.CancelledAt,
-
-		CreatedAt: shp.CreatedAt,
-		UpdatedAt: shp.UpdatedAt,
 	}
 }

@@ -77,6 +77,14 @@ func (f *fakeRepo) FindByProviderOrderID(ctx context.Context, providerOrderID st
 	return nil, ErrShipmentNotFound
 }
 
+func (f *fakeRepo) FindAll(ctx context.Context, filter ShipmentFilter) (ShipmentListResponse, error) {
+	return ShipmentListResponse{}, nil
+}
+
+func (f *fakeRepo) FindByIDWithOrder(ctx context.Context, id uuid.UUID) (*models.Shipment, error) {
+	return f.FindByID(ctx, id)
+}
+
 type fakeOrders struct {
 	order models.Order
 }

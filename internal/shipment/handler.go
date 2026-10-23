@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -213,4 +214,122 @@ func parseUUIDParam(c *gin.Context, name string) (uuid.UUID, bool) {
 	}
 
 	return value, true
+}
+
+// GET /admin/shipments
+func (h *Handler) ListShipments(c *gin.Context) {
+
+	_, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+
+	filter, ok := parseShipmentFilter(c)
+	if !ok {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	result, err := h.service.ListShipments(ctx, filter)
+	if err != nil {
+		slog.Error("shipment.list_failed", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "internal server error",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// GET /admin/shipments/:shipment_id
+func (h *Handler) GetShipmentDetail(c *gin.Context) {
+
+	_, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+
+	shipmentID, ok := parseUUIDParam(c, "shipment_id")
+	if !ok {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	result, err := h.service.GetShipmentDetail(ctx, shipmentID)
+	if err != nil {
+		respondShipmentError(c, "shipment.get_detail", nil, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+func parseShipmentFilter(c *gin.Context) (ShipmentFilter, bool) {
+
+	page, pageSize, ok := parsePagination(c)
+	if !ok {
+		return ShipmentFilter{}, false
+	}
+
+	filter := ShipmentFilter{
+		Page:     page,
+		PageSize: pageSize,
+	}
+
+	if raw := c.Query("status"); raw != "" {
+		status := ShipmentStatus(raw)
+		if !status.IsValid() {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid status filter",
+			})
+			return ShipmentFilter{}, false
+		}
+		filter.Status = &status
+	}
+
+	return filter, true
+}
+
+const (
+	defaultPage     = 1
+	defaultPageSize = 10
+	maxPageSize     = 100
+)
+
+func parsePagination(c *gin.Context) (int, int, bool) {
+
+	page := defaultPage
+	pageSize := defaultPageSize
+
+	if raw := c.Query("page"); raw != "" {
+		value, err := strconv.Atoi(raw)
+		if err != nil || value < 1 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid page",
+			})
+			return 0, 0, false
+		}
+		page = value
+	}
+
+	if raw := c.Query("page_size"); raw != "" {
+		value, err := strconv.Atoi(raw)
+		if err != nil || value < 1 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid page_size",
+			})
+			return 0, 0, false
+		}
+		if value > maxPageSize {
+			value = maxPageSize
+		}
+		pageSize = value
+	}
+
+	return page, pageSize, true
 }

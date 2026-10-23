@@ -52,6 +52,13 @@ type Repository interface {
 		ctx context.Context,
 		providerOrderID string,
 	) (*models.Shipment, error)
+
+	// FindAll untuk data table admin: filter status opsional +
+	// pagination, urut terbaru.
+	FindAll(ctx context.Context, filter ShipmentFilter) (ShipmentListResponse, error)
+
+	// FindByIDWithOrder memuat relasi Order untuk halaman detail.
+	FindByIDWithOrder(ctx context.Context, id uuid.UUID) (*models.Shipment, error)
 }
 
 type repository struct {
@@ -190,4 +197,87 @@ func (r *repository) FindByProviderOrderID(ctx context.Context, providerOrderID 
 	}
 
 	return &shipment, nil
+}
+
+func (r *repository) FindAll(ctx context.Context, filter ShipmentFilter) (ShipmentListResponse, error) {
+
+	db := database.GetDB(ctx, r.db).WithContext(ctx)
+
+	query := db.Model(&models.Shipment{})
+
+	if filter.Status != nil {
+		query = query.Where("status = ?", string(*filter.Status))
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return ShipmentListResponse{}, fmt.Errorf("counting shipments: %w", err)
+	}
+
+	offset := (filter.Page - 1) * filter.PageSize
+
+	var shipments []models.Shipment
+	if err := query.
+		Order("created_at DESC").
+		Limit(filter.PageSize).
+		Offset(offset).
+		Find(&shipments).Error; err != nil {
+		return ShipmentListResponse{}, fmt.Errorf("finding shipments: %w", err)
+	}
+
+	items := make([]ShipmentResponse, len(shipments))
+	for i, s := range shipments {
+		items[i] = toShipmentResponse(s)
+	}
+
+	return ShipmentListResponse{
+		Shipments: items,
+		Meta: ShipmentListMeta{
+			Total:    total,
+			Page:     filter.Page,
+			PageSize: filter.PageSize,
+		},
+	}, nil
+}
+
+func (r *repository) FindByIDWithOrder(ctx context.Context, id uuid.UUID) (*models.Shipment, error) {
+
+	db := database.GetDB(ctx, r.db).WithContext(ctx)
+
+	var shipment models.Shipment
+	if err := db.Preload("Order").First(&shipment, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrShipmentNotFound
+		}
+		return nil, fmt.Errorf("finding shipment with order: %w", err)
+	}
+
+	return &shipment, nil
+}
+
+func toShipmentResponse(shp models.Shipment) ShipmentResponse {
+	return ShipmentResponse{
+		ID:              shp.ID,
+		OrderID:         shp.OrderID,
+		Provider:        shp.Provider,
+		ProviderOrderID: shp.ProviderOrderID,
+
+		CourierCompany: shp.CourierCompany,
+		CourierType:    shp.CourierType,
+		TrackingNumber: shp.TrackingNumber,
+		TrackingURL:    shp.TrackingURL,
+
+		Status:         shp.Status,
+		ProviderStatus: shp.ProviderStatus,
+
+		ShippingCost: shp.ShippingCost,
+		Currency:     shp.Currency,
+
+		ShippedAt:   shp.ShippedAt,
+		DeliveredAt: shp.DeliveredAt,
+		CancelledAt: shp.CancelledAt,
+
+		CreatedAt: shp.CreatedAt,
+		UpdatedAt: shp.UpdatedAt,
+	}
 }
