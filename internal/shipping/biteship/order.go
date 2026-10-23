@@ -125,6 +125,8 @@ type TrackingAPIResponse struct {
 type trackingAPICourier struct {
 	Company           string `json:"company"`
 	Type              string `json:"type"`
+	Name              string `json:"name"`
+	Phone             string `json:"phone"`
 	DriverName        string `json:"driver_name"`
 	DriverPhone       string `json:"driver_phone"`
 	DriverPhotoURL    string `json:"driver_photo_url"`
@@ -224,14 +226,14 @@ type OrderDetailResponse struct {
 	ShortID     string                 `json:"short_id"`
 	Status      string                 `json:"status"`
 	Price       int64                  `json:"price"`
-	Courier     orderDetailAPICourier  `json:"courier"`
+	Courier     OrderDetailCourier     `json:"courier"`
 	Origin      orderDetailAPILocation `json:"origin"`
 	Destination orderDetailAPILocation `json:"destination"`
 	Delivery    orderDetailAPIDelivery `json:"delivery"`
 	Items       []orderDetailAPIItem   `json:"items"`
 }
 
-type orderDetailAPICourier struct {
+type OrderDetailCourier struct {
 	TrackingID  string                   `json:"tracking_id"`
 	WaybillID   string                   `json:"waybill_id"`
 	Company     string                   `json:"company"`

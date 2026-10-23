@@ -338,13 +338,24 @@ func (s *service) Track(
 		Events:         []ShipmentTrackingEvent{},
 	}
 
-	// Resi belum ada (kurir instant belum pickup) atau provider tidak
-	// punya riwayat: kembalikan status lokal tanpa events.
-	if shp.TrackingNumber == nil || *shp.TrackingNumber == "" {
+	// Shipment belum dikonfirmasi ke provider.
+	if shp.ProviderOrderID == nil || *shp.ProviderOrderID == "" {
 		return response, nil
 	}
 
-	events, err := s.provider.GetTracking(ctx, *shp.TrackingNumber)
+	order, err := s.provider.GetOrderDetail(ctx, *shp.ProviderOrderID)
+	if err != nil {
+		return ShipmentTrackingResponse{}, fmt.Errorf(
+			"fetching order for shipment %s: %w", shp.ID, err,
+		)
+	}
+
+	trackingID := order.Courier.TrackingID
+	if trackingID == "" {
+		return response, nil
+	}
+
+	events, err := s.provider.GetTracking(ctx, trackingID)
 	if err != nil {
 		return ShipmentTrackingResponse{}, fmt.Errorf(
 			"fetching tracking for shipment %s: %w", shp.ID, err,
@@ -417,18 +428,28 @@ func (s *service) GetAdminTrackingDetail(
 		return TrackingDetailResponse{}, fmt.Errorf("find shipment: %w", err)
 	}
 
-	if shp.TrackingNumber == nil || *shp.TrackingNumber == "" {
-		return TrackingDetailResponse{}, fmt.Errorf("shipment has no tracking number")
+	if shp.ProviderOrderID == nil || *shp.ProviderOrderID == "" {
+		return TrackingDetailResponse{}, fmt.Errorf("shipment not confirmed yet")
 	}
 
-	tracking, err := s.provider.GetTrackingDetail(ctx, *shp.TrackingNumber)
+	order, err := s.provider.GetOrderDetail(ctx, *shp.ProviderOrderID)
+	if err != nil {
+		return TrackingDetailResponse{}, fmt.Errorf("biteship order detail: %w", err)
+	}
+
+	trackingID := order.Courier.TrackingID
+	if trackingID == "" {
+		return TrackingDetailResponse{}, fmt.Errorf("tracking not available yet")
+	}
+
+	tracking, err := s.provider.GetTrackingDetail(ctx, trackingID)
 	if err != nil {
 		return TrackingDetailResponse{}, fmt.Errorf("biteship tracking: %w", err)
 	}
 
 	response := TrackingDetailResponse{
 		ID:        shp.ID,
-		WaybillID: tracking.WaybillID,
+		WaybillID: order.Courier.WaybillID,
 		Status:    tracking.Status,
 		Link:      tracking.Link,
 		Courier: TrackingDetailCourier{
@@ -459,14 +480,9 @@ func (s *service) GetAdminTrackingDetail(
 		})
 	}
 
-	if shp.ProviderOrderID != nil && *shp.ProviderOrderID != "" {
-		order, err := s.provider.GetOrderDetail(ctx, *shp.ProviderOrderID)
-		if err == nil {
-			if order.Delivery.Datetime != "" {
-				deliveryTime, _ := time.Parse(time.RFC3339, order.Delivery.Datetime)
-				response.EstimatedDelivery = &deliveryTime
-			}
-		}
+	if order.Delivery.Datetime != "" {
+		deliveryTime, _ := time.Parse(time.RFC3339, order.Delivery.Datetime)
+		response.EstimatedDelivery = &deliveryTime
 	}
 
 	response.DeliveredAt = shp.DeliveredAt

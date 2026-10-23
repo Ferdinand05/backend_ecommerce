@@ -95,9 +95,14 @@ func (f *fakeOrders) FindByID(ctx context.Context, orderID uuid.UUID) (models.Or
 }
 
 type fakeProvider struct {
-	result    biteship.CreateOrderResult
-	err       error
-	callCount int
+	result              biteship.CreateOrderResult
+	err                 error
+	callCount           int
+	orderDetail         biteship.OrderDetailResponse
+	trackingByID        biteship.TrackingAPIResponse
+	orderDetailCalls    []string
+	trackingDetailCalls []string
+	trackingCalls       []string
 }
 
 func (f *fakeProvider) CreateOrder(ctx context.Context, req biteship.CreateOrderRequest) (biteship.CreateOrderResult, error) {
@@ -109,15 +114,18 @@ func (f *fakeProvider) CreateOrder(ctx context.Context, req biteship.CreateOrder
 }
 
 func (f *fakeProvider) GetTracking(ctx context.Context, waybillID string) ([]biteship.TrackingEvent, error) {
+	f.trackingCalls = append(f.trackingCalls, waybillID)
 	return nil, nil
 }
 
 func (f *fakeProvider) GetTrackingDetail(ctx context.Context, trackingID string) (biteship.TrackingAPIResponse, error) {
-	return biteship.TrackingAPIResponse{}, nil
+	f.trackingDetailCalls = append(f.trackingDetailCalls, trackingID)
+	return f.trackingByID, nil
 }
 
 func (f *fakeProvider) GetOrderDetail(ctx context.Context, orderID string) (biteship.OrderDetailResponse, error) {
-	return biteship.OrderDetailResponse{}, nil
+	f.orderDetailCalls = append(f.orderDetailCalls, orderID)
+	return f.orderDetail, nil
 }
 
 func paidOrder(t *testing.T) models.Order {
@@ -282,6 +290,64 @@ func TestRecoverPending(t *testing.T) {
 	}
 	if provider.callCount != 1 {
 		t.Fatalf("provider calls = %d, want 1 (hanya kasus PENDING)", provider.callCount)
+	}
+}
+
+func TestTrackResolvesTrackingIDViaOrder(t *testing.T) {
+	userID := uuid.New()
+	orderID := uuid.New()
+	providerOrderID := "biteship-order-123"
+	trackingID := "OCrDQHoig3qLfBGCnAMN7ebf"
+
+	shp := pendingShipment(orderID)
+	shp.ProviderOrderID = &providerOrderID
+	shp.Status = string(ShipmentStatusConfirmed)
+
+	repo := &fakeRepo{shipment: shp, exists: true}
+	provider := &fakeProvider{
+		orderDetail: biteship.OrderDetailResponse{
+			Courier: biteship.OrderDetailCourier{TrackingID: trackingID},
+		},
+	}
+	order := &fakeOrders{order: models.Order{ID: orderID, UserID: userID}}
+	svc := newTestService(repo, order, provider)
+
+	resp, err := svc.Track(context.Background(), userID, shp.ID)
+	if err != nil {
+		t.Fatalf("Track error = %v", err)
+	}
+	if resp.ShipmentID != shp.ID.String() {
+		t.Fatalf("shipment_id = %s, want %s", resp.ShipmentID, shp.ID)
+	}
+	if len(provider.orderDetailCalls) != 1 || provider.orderDetailCalls[0] != providerOrderID {
+		t.Fatalf("GetOrderDetail calls = %v, want [%s]", provider.orderDetailCalls, providerOrderID)
+	}
+	if len(provider.trackingCalls) != 1 || provider.trackingCalls[0] != trackingID {
+		t.Fatalf("GetTracking calls = %v, want [%s]", provider.trackingCalls, trackingID)
+	}
+}
+
+func TestTrackReturnsEmptyEventsWhenProviderOrderIDMissing(t *testing.T) {
+	userID := uuid.New()
+	orderID := uuid.New()
+
+	shp := pendingShipment(orderID)
+	shp.ProviderOrderID = nil
+
+	repo := &fakeRepo{shipment: shp, exists: true}
+	provider := &fakeProvider{}
+	order := &fakeOrders{order: models.Order{ID: orderID, UserID: userID}}
+	svc := newTestService(repo, order, provider)
+
+	resp, err := svc.Track(context.Background(), userID, shp.ID)
+	if err != nil {
+		t.Fatalf("Track error = %v", err)
+	}
+	if len(resp.Events) != 0 {
+		t.Fatalf("events = %v, want empty for unconfirmed shipment", resp.Events)
+	}
+	if len(provider.orderDetailCalls) != 0 {
+		t.Fatalf("GetOrderDetail called %d times, want 0", len(provider.orderDetailCalls))
 	}
 }
 
