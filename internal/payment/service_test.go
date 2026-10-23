@@ -246,7 +246,7 @@ func newTestService(ord *models.Order, repo *fakePaymentRepo, xendit *fakeXendit
 	if ord != nil {
 		orderRepo.order = *ord
 	}
-	return NewService(nil, orderRepo, repo, nil, nil, xendit)
+	return NewService(nil, orderRepo, repo, nil, nil, xendit, nil)
 }
 
 func newPendingPayment(externalID string) models.Payment {

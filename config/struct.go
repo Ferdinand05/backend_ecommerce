@@ -39,11 +39,16 @@ type RedisConfig struct {
 }
 
 type BiteshipConfig struct {
-	ApiKey       string
-	BaseURL      string
-	Timeout      string
-	OriginAreaID string
-	Couriers     string
+	ApiKey             string
+	BaseURL            string
+	Timeout            string
+	OriginAreaID       string
+	Couriers           string
+	SignatureKey       string
+	SignatureSecret    string
+	OriginContactName  string
+	OriginContactPhone string
+	OriginAddress      string
 }
 
 type XenditConfig struct {

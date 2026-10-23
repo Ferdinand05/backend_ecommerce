@@ -110,8 +110,27 @@ func seedWebhookWorld(t *testing.T, db *gorm.DB, orderStatus string) webhookFixt
 		Status:      orderStatus,
 		Subtotal:    decimal.NewFromInt(120000),
 		TotalAmount: decimal.NewFromInt(120000),
+
+		CourierCode:        "jne",
+		CourierServiceCode: "reg",
+		CourierName:        "JNE",
+		CourierServiceName: "REG",
+		ShippingCost:       decimal.NewFromInt(20000),
 	}
 	require.NoError(t, db.Create(&ord).Error)
+
+	address := models.OrderAddress{
+		ID:             uuid.New(),
+		OrderID:        ord.ID,
+		RecipientName:  "Budi",
+		Phone:          "081200000000",
+		Address:        "Jl. Test 1",
+		City:           "Tangerang",
+		Province:       "Banten",
+		PostalCode:     "15142",
+		BiteshipAreaID: ptr("area-1"),
+	}
+	require.NoError(t, db.Create(&address).Error)
 
 	item := models.OrderItem{
 		ID:               uuid.New(),
@@ -162,15 +181,39 @@ func (f webhookFixture) callback(status string) InvoiceCallback {
 	}
 }
 
-func newRealService(db *gorm.DB) Service {
-	return NewService(
+// fakeShipmentStarter merekam interaksi webhook dengan shipment
+// service tanpa menyentuh provider pengiriman.
+type fakeShipmentStarter struct {
+	created   []models.Order
+	recovered []uuid.UUID
+	createErr error
+}
+
+func (f *fakeShipmentStarter) CreatePending(ctx context.Context, ord models.Order) error {
+	if f.createErr != nil {
+		return f.createErr
+	}
+	f.created = append(f.created, ord)
+	return nil
+}
+
+func (f *fakeShipmentStarter) RecoverPending(ctx context.Context, orderID uuid.UUID) error {
+	f.recovered = append(f.recovered, orderID)
+	return nil
+}
+
+func newRealService(db *gorm.DB) (Service, *fakeShipmentStarter) {
+	shipments := &fakeShipmentStarter{}
+	svc := NewService(
 		db,
 		order.NewRepository(db),
 		NewRepository(db),
 		inventory.NewInventoryRepository(db),
 		inventory.NewStockMovementRepository(db),
 		&fakeXendit{},
+		shipments,
 	)
+	return svc, shipments
 }
 
 // --- tests ---
@@ -182,7 +225,7 @@ func TestWebhookPaidFinalizesEverything(t *testing.T) {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, nil)))
 
 	f := seedWebhookWorld(t, setupWebhookDB(t), "PENDING")
-	svc := newRealService(f.db)
+	svc, shipments := newRealService(f.db)
 
 	require.NoError(t, svc.HandleInvoiceCallback(context.Background(), f.callback("PAID")))
 
@@ -221,6 +264,12 @@ func TestWebhookPaidFinalizesEverything(t *testing.T) {
 	require.Equal(t, f.order.ID, *m.ReferenceID)
 	require.NotNil(t, m.Note)
 	require.Contains(t, *m.Note, f.order.OrderNumber)
+
+	// Shipment tercatat PENDING dalam transaksi yang sama.
+	require.Len(t, shipments.created, 1, "CreatePending dipanggil sekali")
+	require.Equal(t, f.order.ID, shipments.created[0].ID)
+	require.Len(t, shipments.recovered, 1, "RecoverPending dipanggil setelah commit")
+	require.Equal(t, f.order.ID, shipments.recovered[0])
 }
 
 func TestWebhookPaidReplayIsIdempotent(t *testing.T) {
@@ -229,7 +278,7 @@ func TestWebhookPaidReplayIsIdempotent(t *testing.T) {
 	}
 
 	f := seedWebhookWorld(t, setupWebhookDB(t), "PENDING")
-	svc := newRealService(f.db)
+	svc, shipments := newRealService(f.db)
 	cb := f.callback("PAID")
 
 	require.NoError(t, svc.HandleInvoiceCallback(context.Background(), cb))
@@ -244,6 +293,10 @@ func TestWebhookPaidReplayIsIdempotent(t *testing.T) {
 	require.NoError(t, f.db.Model(&models.StockMovement{}).
 		Where("inventory_item_id = ?", inv.ID).Count(&count).Error)
 	require.EqualValues(t, 1, count, "jurnal SALE tidak boleh dobel")
+
+	// Shipment dicatat sekali; replay RecoverPending no-op untuk non-PENDING.
+	require.Len(t, shipments.created, 1, "CreatePending sekali")
+	require.Len(t, shipments.recovered, 2, "RecoverPending dipanggil dua kali (replay)")
 }
 
 func TestWebhookExpiredKeepsOrderPending(t *testing.T) {
@@ -252,7 +305,7 @@ func TestWebhookExpiredKeepsOrderPending(t *testing.T) {
 	}
 
 	f := seedWebhookWorld(t, setupWebhookDB(t), "PENDING")
-	svc := newRealService(f.db)
+	svc, _ := newRealService(f.db)
 
 	require.NoError(t, svc.HandleInvoiceCallback(context.Background(), f.callback("EXPIRED")))
 
@@ -277,7 +330,7 @@ func TestWebhookPaidAfterCancelledRecordsPayment(t *testing.T) {
 	}
 
 	f := seedWebhookWorld(t, setupWebhookDB(t), "CANCELLED")
-	svc := newRealService(f.db)
+	svc, _ := newRealService(f.db)
 
 	require.NoError(t, svc.HandleInvoiceCallback(context.Background(), f.callback("PAID")))
 
@@ -306,7 +359,7 @@ func TestWebhookInsufficientStockRollsBack(t *testing.T) {
 		Where("product_variant_id = ?", f.variant.ID).
 		Update("reserved_quantity", 0).Error)
 
-	svc := newRealService(f.db)
+	svc, _ := newRealService(f.db)
 	err := svc.HandleInvoiceCallback(context.Background(), f.callback("PAID"))
 	require.Error(t, err)
 	require.True(t, errors.Is(err, inventory.ErrorInsufficientStock))

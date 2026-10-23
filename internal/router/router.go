@@ -13,6 +13,7 @@ import (
 	productimage "ferdinand/ecommerce/internal/product_image"
 	productvariant "ferdinand/ecommerce/internal/product_variant"
 	"ferdinand/ecommerce/internal/role"
+	"ferdinand/ecommerce/internal/shipment"
 	"ferdinand/ecommerce/internal/shipping"
 	"ferdinand/ecommerce/internal/user"
 	userJWT "ferdinand/ecommerce/utils/jwt"
@@ -34,6 +35,7 @@ type RouteHandlers struct {
 	ShippingHandler       *shipping.Handler
 	CheckoutHandler       *checkout.Handler
 	PaymentHandler        *payment.Handler
+	ShipmentHandler       *shipment.Handler
 }
 
 func New(handlers RouteHandlers, jwtService *userJWT.JWTService) *gin.Engine {
@@ -62,6 +64,7 @@ func New(handlers RouteHandlers, jwtService *userJWT.JWTService) *gin.Engine {
 	admin := v1.Group("/admin", middleware.AuthMiddleware(jwtService), middleware.RequireRole("admin")) // admin
 	payment.RegisterRoutes(v1, me, admin, handlers.PaymentHandler)
 	order.RegisterRoutes(me, admin, handlers.OrderHandler)
+	shipment.RegisterRoutes(me, admin, handlers.ShipmentHandler)
 	inventory.RegisterRoutes(v1, admin, handlers.InventoryHandler)
 
 	return r
