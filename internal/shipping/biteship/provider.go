@@ -170,6 +170,30 @@ func (p *Provider) GetTracking(
 	return events, nil
 }
 
+// GetOrderDetail memanggil GET /v1/orders/:id Biteship.
+func (p *Provider) GetOrderDetail(
+	ctx context.Context,
+	orderID string,
+) (OrderDetailResponse, error) {
+	result, err := p.client.GetOrder(ctx, orderID)
+	if err != nil {
+		return OrderDetailResponse{}, fmt.Errorf("biteship order detail: %w", err)
+	}
+	return result, nil
+}
+
+// GetTrackingDetail memanggil GET /v1/trackings/:id Biteship.
+func (p *Provider) GetTrackingDetail(
+	ctx context.Context,
+	trackingID string,
+) (TrackingAPIResponse, error) {
+	result, err := p.client.GetTracking(ctx, trackingID)
+	if err != nil {
+		return TrackingAPIResponse{}, fmt.Errorf("biteship tracking detail: %w", err)
+	}
+	return result, nil
+}
+
 // trackingPageURL ponytail: halaman pelacakan publik Biteship; ganti
 // bila link resmi berubah atau respons API menyediakan URL langsung.
 func trackingPageURL(waybillID string) string {

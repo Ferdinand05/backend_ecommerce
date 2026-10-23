@@ -88,3 +88,39 @@ type OrderSummary struct {
 	TotalAmount decimal.Decimal `json:"total_amount"`
 	CreatedAt   time.Time       `json:"created_at"`
 }
+
+// TrackingDetailResponse: tracking lengkap untuk admin (dari Biteship + order).
+type TrackingDetailResponse struct {
+	ID                uuid.UUID              `json:"id"`
+	WaybillID         string                 `json:"waybill_id"`
+	Status            string                 `json:"status"`
+	Link              string                 `json:"link"`
+	Courier           TrackingDetailCourier  `json:"courier"`
+	Origin            TrackingDetailLocation `json:"origin"`
+	Destination       TrackingDetailLocation `json:"destination"`
+	History           []TrackingHistoryEvent `json:"history"`
+	EstimatedDelivery *time.Time             `json:"estimated_delivery,omitempty"`
+	DeliveredAt       *time.Time             `json:"delivered_at,omitempty"`
+}
+
+type TrackingDetailCourier struct {
+	Company           string `json:"company"`
+	Type              string `json:"type"`
+	DriverName        string `json:"driver_name,omitempty"`
+	DriverPhone       string `json:"driver_phone,omitempty"`
+	DriverPhotoURL    string `json:"driver_photo_url,omitempty"`
+	DriverPlateNumber string `json:"driver_plate_number,omitempty"`
+}
+
+type TrackingDetailLocation struct {
+	ContactName string  `json:"contact_name,omitempty"`
+	Address     string  `json:"address,omitempty"`
+	Latitude    float64 `json:"latitude,omitempty"`
+	Longitude   float64 `json:"longitude,omitempty"`
+}
+
+type TrackingHistoryEvent struct {
+	Status      string    `json:"status"`
+	Description string    `json:"description"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}

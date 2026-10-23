@@ -102,9 +102,33 @@ func (h *Handler) TrackMyShipment(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// GET /admin/shipments/:shipment_id/tracking
+func (h *Handler) GetAdminTracking(c *gin.Context) {
+
+	_, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+
+	shipmentID, ok := parseUUIDParam(c, "shipment_id")
+	if !ok {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+
+	response, err := h.service.GetAdminTrackingDetail(ctx, shipmentID)
+	if err != nil {
+		respondShipmentError(c, "shipment.admin_tracking", nil, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
 // POST /admin/shipments/:shipment_id/retry
 func (h *Handler) RetryShipment(c *gin.Context) {
-
 	userID, ok := currentUserID(c)
 	if !ok {
 		return
