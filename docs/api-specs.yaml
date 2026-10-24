@@ -1729,6 +1729,22 @@ components:
         price: { type: number }
         is_active: { type: boolean }
         weight_grams: { type: integer }
+        inventory: { $ref: "#/components/schemas/VariantInventory" }
+        images:
+          type: array
+          items: { $ref: "#/components/schemas/ProductVariantImageResponse" }
+    VariantInventory:
+      type: object
+      properties:
+        quantity: { type: integer }
+        reserved_quantity: { type: integer }
+    ProductVariantImageResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        url: { type: string, format: uri }
+        alt: { type: string, nullable: true }
+        sort_order: { type: integer }
     VariantEnvelope:
       type: object
       properties:

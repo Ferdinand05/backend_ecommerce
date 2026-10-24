@@ -6,6 +6,7 @@ import (
 	"errors"
 	"ferdinand/ecommerce/internal/models"
 	"ferdinand/ecommerce/internal/product"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -59,13 +60,27 @@ type variantsEnvelope struct {
 	Variants []ProductVariantResponse `json:"variants"`
 }
 
+type fakeStorage struct{}
+
+func (fakeStorage) Upload(ctx context.Context, key string, file io.Reader, contentType string) error {
+	return nil
+}
+
+func (fakeStorage) Delete(ctx context.Context, key string) error {
+	return nil
+}
+
+func (fakeStorage) URL(key string) string {
+	return "https://cdn.example.com/" + key
+}
+
 func newTestRouter(svc Service) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	public := r.Group("/api/v1")
 	admin := r.Group("/api/v1/admin")
-	RegisterPublicRoutes(public, NewHandler(svc))
-	RegisterAdminRoutes(admin, NewHandler(svc))
+	RegisterPublicRoutes(public, NewHandler(svc, fakeStorage{}))
+	RegisterAdminRoutes(admin, NewHandler(svc, fakeStorage{}))
 	return r
 }
 
@@ -92,7 +107,9 @@ func doRequest(t *testing.T, r *gin.Engine, method, path, body string) *httptest
 
 func TestHandlerFindAll(t *testing.T) {
 	svc := &fakeService{findAllRes: []models.ProductVariant{
-		{ID: uuid.New(), SKU: "LAP-001", Name: "16GB", Price: decimal.NewFromInt(15000000), IsActive: true},
+		{ID: uuid.New(), SKU: "LAP-001", Name: "16GB", Price: decimal.NewFromInt(15000000), IsActive: true,
+			Inventory: &models.InventoryItem{Quantity: 8, ReservedQuantity: 2},
+			Images:    []models.ProductImage{{ID: uuid.New(), StorageKey: "variants/lap.jpg", SortOrder: 1}}},
 	}}
 
 	w := doRequest(t, newTestRouter(svc), http.MethodGet, "/api/v1/products/"+uuid.New().String()+"/variants", "")
@@ -112,6 +129,12 @@ func TestHandlerFindAll(t *testing.T) {
 
 	if got.Variants[0].SKU != "LAP-001" {
 		t.Fatalf("sku = %q, want LAP-001", got.Variants[0].SKU)
+	}
+	if got.Variants[0].Inventory == nil || got.Variants[0].Inventory.Quantity != 8 {
+		t.Fatalf("inventory = %+v, want quantity 8", got.Variants[0].Inventory)
+	}
+	if len(got.Variants[0].Images) != 1 || got.Variants[0].Images[0].URL != "https://cdn.example.com/variants/lap.jpg" {
+		t.Fatalf("images = %+v, want variant image URL", got.Variants[0].Images)
 	}
 }
 
@@ -136,7 +159,11 @@ func TestHandlerFindAllInvalidProductID(t *testing.T) {
 func TestHandlerFindByID(t *testing.T) {
 	productID := uuid.New()
 	id := uuid.New()
-	svc := &fakeService{findByIDRes: models.ProductVariant{ID: id, ProductID: productID, SKU: "LAP-001"}}
+	svc := &fakeService{findByIDRes: models.ProductVariant{
+		ID: id, ProductID: productID, SKU: "LAP-001",
+		Inventory: &models.InventoryItem{Quantity: 8, ReservedQuantity: 2},
+		Images:    []models.ProductImage{{ID: uuid.New(), StorageKey: "variants/lap.jpg", SortOrder: 1}},
+	}}
 
 	w := doRequest(t, newTestRouter(svc), http.MethodGet, "/api/v1/products/"+productID.String()+"/variants/"+id.String(), "")
 
@@ -151,6 +178,12 @@ func TestHandlerFindByID(t *testing.T) {
 
 	if got.Variant.ID != id {
 		t.Fatalf("id = %v, want %v", got.Variant.ID, id)
+	}
+	if got.Variant.Inventory == nil || got.Variant.Inventory.ReservedQuantity != 2 {
+		t.Fatalf("inventory = %+v, want reserved quantity 2", got.Variant.Inventory)
+	}
+	if len(got.Variant.Images) != 1 || got.Variant.Images[0].URL != "https://cdn.example.com/variants/lap.jpg" {
+		t.Fatalf("images = %+v, want variant image URL", got.Variant.Images)
 	}
 }
 

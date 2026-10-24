@@ -102,7 +102,7 @@ func main() {
 	inventoryItemRepo := inventory.NewInventoryRepository(db)
 
 	productVariantService := productvariant.NewService(productVariantRepo, productRepo, inventoryItemRepo, db)
-	productVariantHandler := productvariant.NewHandler(productVariantService)
+	productVariantHandler := productvariant.NewHandler(productVariantService, r2Storage)
 
 	productImageRepo := productimage.NewRepository(db)
 	productImageService := productimage.NewService(productImageRepo, productRepo, productVariantRepo, r2Storage)
