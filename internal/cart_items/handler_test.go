@@ -6,6 +6,7 @@ import (
 	"errors"
 	"ferdinand/ecommerce/internal/middleware"
 	"ferdinand/ecommerce/internal/product_variant"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,6 +17,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
+
+type fakeStorage struct{}
+
+func (fakeStorage) Upload(ctx context.Context, key string, file io.Reader, contentType string) error {
+	return nil
+}
+func (fakeStorage) Delete(ctx context.Context, key string) error { return nil }
+func (fakeStorage) URL(key string) string                        { return "https://cdn.example.com/" + key }
 
 type fakeService struct {
 	getCartRes CartResponse

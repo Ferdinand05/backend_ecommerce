@@ -12,7 +12,7 @@ import (
 )
 
 func newCartService(db *gorm.DB) *service {
-	return NewService(NewRepository(db), productvariant.NewRepository(db))
+	return NewService(NewRepository(db), productvariant.NewRepository(db), fakeCartStorage{})
 }
 
 func TestCartServiceFlow(t *testing.T) {

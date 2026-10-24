@@ -5,6 +5,7 @@ import (
 
 	"ferdinand/ecommerce/internal/models"
 	productvariant "ferdinand/ecommerce/internal/product_variant"
+	"ferdinand/ecommerce/internal/storage"
 
 	"github.com/google/uuid"
 )
@@ -47,16 +48,32 @@ type Service interface {
 type service struct {
 	repo        Repository
 	variantRepo productvariant.Repository
+	storage     storage.Provider
 }
 
-func NewService(repo Repository, variantRepo productvariant.Repository) *service {
-	return &service{
-		repo:        repo,
-		variantRepo: variantRepo,
+func NewService(repo Repository, variantRepo productvariant.Repository, storageProvider ...storage.Provider) *service {
+	svc := &service{repo: repo, variantRepo: variantRepo}
+	if len(storageProvider) > 0 {
+		svc.storage = storageProvider[0]
 	}
+	return svc
 }
 
-func toCartItemResponse(item models.CartItem) CartItemResponse {
+func (s *service) toCartItemResponse(item models.CartItem) CartItemResponse {
+	images := make([]CartItemImageResponse, len(item.ProductVariant.Images))
+	for i, image := range item.ProductVariant.Images {
+		url := image.StorageKey
+		if s.storage != nil {
+			url = s.storage.URL(image.StorageKey)
+		}
+		images[i] = CartItemImageResponse{
+			ID:        image.ID,
+			URL:       url,
+			Alt:       image.Alt,
+			SortOrder: image.SortOrder,
+		}
+	}
+
 	return CartItemResponse{
 		ID:               item.ID,
 		ProductVariantID: item.ProductVariantID,
@@ -66,6 +83,7 @@ func toCartItemResponse(item models.CartItem) CartItemResponse {
 		Price:            item.ProductVariant.Price,
 		ProductID:        item.ProductVariant.ProductID,
 		ProductName:      item.ProductVariant.Product.Name,
+		Images:           images,
 	}
 }
 
@@ -78,7 +96,7 @@ func (s *service) GetCart(ctx context.Context, userID uuid.UUID) (CartResponse, 
 
 	responses := make([]CartItemResponse, len(items))
 	for i, item := range items {
-		responses[i] = toCartItemResponse(item)
+		responses[i] = s.toCartItemResponse(item)
 	}
 
 	return CartResponse{Items: responses}, nil
@@ -102,7 +120,7 @@ func (s *service) AddItem(ctx context.Context, userID uuid.UUID, req AddCartItem
 		return CartItemResponse{}, err
 	}
 
-	return toCartItemResponse(item), nil
+	return s.toCartItemResponse(item), nil
 }
 
 func (s *service) IncreaseItem(ctx context.Context, userID uuid.UUID, itemID uuid.UUID) (CartItemResponse, error) {
@@ -116,7 +134,7 @@ func (s *service) IncreaseItem(ctx context.Context, userID uuid.UUID, itemID uui
 		return CartItemResponse{}, err
 	}
 
-	return toCartItemResponse(item), nil
+	return s.toCartItemResponse(item), nil
 }
 
 func (s *service) DecreaseItem(ctx context.Context, userID uuid.UUID, itemID uuid.UUID) (CartItemResponse, bool, error) {
@@ -139,7 +157,7 @@ func (s *service) DecreaseItem(ctx context.Context, userID uuid.UUID, itemID uui
 		return CartItemResponse{}, false, err
 	}
 
-	return toCartItemResponse(updated), false, nil
+	return s.toCartItemResponse(updated), false, nil
 }
 
 func (s *service) RemoveItem(ctx context.Context, userID uuid.UUID, itemID uuid.UUID) error {

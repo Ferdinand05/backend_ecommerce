@@ -14,11 +14,19 @@ type CartItemResponse struct {
 	ProductVariantID uuid.UUID `json:"product_variant_id"`
 	Quantity         int       `json:"quantity"`
 
-	SKU         string          `json:"sku"`
-	Name        string          `json:"name"`
-	Price       decimal.Decimal `json:"price"`
-	ProductID   uuid.UUID       `json:"product_id"`
-	ProductName string          `json:"product_name"`
+	SKU         string                  `json:"sku"`
+	Name        string                  `json:"name"`
+	Price       decimal.Decimal         `json:"price"`
+	ProductID   uuid.UUID               `json:"product_id"`
+	ProductName string                  `json:"product_name"`
+	Images      []CartItemImageResponse `json:"images"`
+}
+
+type CartItemImageResponse struct {
+	ID        uuid.UUID `json:"id"`
+	URL       string    `json:"url"`
+	Alt       *string   `json:"alt"`
+	SortOrder int       `json:"sort_order"`
 }
 
 type CartResponse struct {

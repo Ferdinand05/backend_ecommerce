@@ -113,7 +113,7 @@ func main() {
 	inventoryHandler := inventory.NewHandler(inventoryService)
 
 	cartRepo := cartitems.NewRepository(db)
-	cartService := cartitems.NewService(cartRepo, productVariantRepo)
+	cartService := cartitems.NewService(cartRepo, productVariantRepo, r2Storage)
 	cartHandler := cartitems.NewHandler(cartService)
 
 	orderRepo := order.NewRepository(db)

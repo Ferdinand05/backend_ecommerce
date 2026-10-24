@@ -1847,6 +1847,16 @@ components:
         price: { type: number }
         product_id: { type: string, format: uuid }
         product_name: { type: string }
+        images:
+          type: array
+          items: { $ref: "#/components/schemas/CartItemImageResponse" }
+    CartItemImageResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        url: { type: string, format: uri }
+        alt: { type: string, nullable: true }
+        sort_order: { type: integer }
     CartEnvelope:
       type: object
       properties:

@@ -5,11 +5,20 @@ import (
 	"errors"
 	"ferdinand/ecommerce/internal/models"
 	productvariant "ferdinand/ecommerce/internal/product_variant"
+	"io"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
+
+type fakeCartStorage struct{}
+
+func (fakeCartStorage) Upload(ctx context.Context, key string, file io.Reader, contentType string) error {
+	return nil
+}
+func (fakeCartStorage) Delete(ctx context.Context, key string) error { return nil }
+func (fakeCartStorage) URL(key string) string                        { return "https://cdn.example.com/" + key }
 
 type fakeRepo struct {
 	addQuantityRes       models.CartItem
@@ -178,7 +187,7 @@ func TestServiceAddItem(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewService(tt.repo, tt.variantRepo)
+			svc := NewService(tt.repo, tt.variantRepo, fakeCartStorage{})
 
 			got, err := svc.AddItem(context.Background(), userID, AddCartItemRequest{ProductVariantID: variantID})
 			if tt.wantErr != nil {
@@ -242,7 +251,7 @@ func TestServiceIncreaseItem(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewService(tt.repo, &fakeVariantRepo{})
+			svc := NewService(tt.repo, &fakeVariantRepo{}, fakeCartStorage{})
 
 			got, err := svc.IncreaseItem(context.Background(), userID, itemID)
 			if tt.wantErr != nil {
@@ -303,7 +312,7 @@ func TestServiceDecreaseItem(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewService(tt.repo, &fakeVariantRepo{})
+			svc := NewService(tt.repo, &fakeVariantRepo{}, fakeCartStorage{})
 
 			got, removed, err := svc.DecreaseItem(context.Background(), userID, itemID)
 			if tt.wantErr != nil {
@@ -364,7 +373,7 @@ func TestServiceRemoveItem(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewService(tt.repo, &fakeVariantRepo{})
+			svc := NewService(tt.repo, &fakeVariantRepo{}, fakeCartStorage{})
 
 			err := svc.RemoveItem(context.Background(), userID, itemID)
 			if tt.wantErr != nil {
@@ -390,7 +399,7 @@ func TestServiceClearCart(t *testing.T) {
 	userID := uuid.New()
 
 	repo := &fakeRepo{}
-	svc := NewService(repo, &fakeVariantRepo{})
+	svc := NewService(repo, &fakeVariantRepo{}, fakeCartStorage{})
 
 	if err := svc.ClearCart(context.Background(), userID); err != nil {
 		t.Fatalf("ClearCart() error = %v", err)
@@ -403,7 +412,7 @@ func TestServiceClearCart(t *testing.T) {
 
 func TestServiceClearCartError(t *testing.T) {
 	repoErr := errors.New("db down")
-	svc := NewService(&fakeRepo{deleteAllErr: repoErr}, &fakeVariantRepo{})
+	svc := NewService(&fakeRepo{deleteAllErr: repoErr}, &fakeVariantRepo{}, fakeCartStorage{})
 
 	if err := svc.ClearCart(context.Background(), uuid.New()); !errors.Is(err, repoErr) {
 		t.Fatalf("ClearCart() error = %v, want pass-through repo error", err)
@@ -412,7 +421,8 @@ func TestServiceClearCartError(t *testing.T) {
 
 func TestServiceGetCart(t *testing.T) {
 	userID := uuid.New()
-	variantA := models.ProductVariant{ID: uuid.New(), SKU: "LAP-001", Price: decimal.NewFromInt(15000000), IsActive: true}
+	variantA := models.ProductVariant{ID: uuid.New(), SKU: "LAP-001", Price: decimal.NewFromInt(15000000), IsActive: true,
+		Images: []models.ProductImage{{ID: uuid.New(), StorageKey: "variants/lap.jpg", SortOrder: 0}}}
 	variantB := models.ProductVariant{ID: uuid.New(), SKU: "LAP-002", Price: decimal.NewFromInt(20000000), IsActive: true}
 
 	dbErr := errors.New("db down")
@@ -442,7 +452,7 @@ func TestServiceGetCart(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewService(tt.repo, &fakeVariantRepo{})
+			svc := NewService(tt.repo, &fakeVariantRepo{}, fakeCartStorage{})
 
 			got, err := svc.GetCart(context.Background(), userID)
 			if tt.wantErr != nil {
@@ -462,6 +472,9 @@ func TestServiceGetCart(t *testing.T) {
 
 			if got.Items[0].SKU != "LAP-001" || got.Items[1].SKU != "LAP-002" {
 				t.Fatalf("GetCart() = %v, %v, want ordered sku mapping", got.Items[0], got.Items[1])
+			}
+			if len(got.Items[0].Images) != 1 || got.Items[0].Images[0].URL != "https://cdn.example.com/variants/lap.jpg" {
+				t.Fatalf("GetCart() images = %+v, want generated variant image URL", got.Items[0].Images)
 			}
 		})
 	}

@@ -128,6 +128,9 @@ func (r *repository) FindByUserID(ctx context.Context, userID uuid.UUID) ([]mode
 
 	err := db.
 		Preload("ProductVariant.Product").
+		Preload("ProductVariant.Images", func(db *gorm.DB) *gorm.DB {
+			return db.Order("sort_order ASC").Order("created_at ASC")
+		}).
 		Where("user_id = ?", userID).
 		Order("created_at ASC").
 		Find(&items).
@@ -178,6 +181,9 @@ func (r *repository) findByIDPreloaded(ctx context.Context, id uuid.UUID) (model
 
 	err := db.
 		Preload("ProductVariant.Product").
+		Preload("ProductVariant.Images", func(db *gorm.DB) *gorm.DB {
+			return db.Order("sort_order ASC").Order("created_at ASC")
+		}).
 		First(&item, id).Error
 	if err != nil {
 
@@ -199,6 +205,9 @@ func (r *repository) findByUserAndVariant(ctx context.Context, userID uuid.UUID,
 
 	err := db.
 		Preload("ProductVariant.Product").
+		Preload("ProductVariant.Images", func(db *gorm.DB) *gorm.DB {
+			return db.Order("sort_order ASC").Order("created_at ASC")
+		}).
 		Where("user_id = ? AND product_variant_id = ?", userID, variantID).
 		First(&item).Error
 	if err != nil {
