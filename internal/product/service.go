@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	productListCacheKey = "products:all"
+	productListCacheKey = "products:all:v2"
 
 	// produk cukup sering berubah (stok, harga via variant, CRUD admin),
 	// TTL pendek agar stale tidak terasa.

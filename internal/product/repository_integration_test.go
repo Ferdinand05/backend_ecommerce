@@ -112,7 +112,11 @@ func TestProductRepositoryFindByID(t *testing.T) {
 
 	category := seedCategory(t, db, "electronics", "electronics")
 	seeded := seedProduct(t, db, category.ID, "laptop", "laptop")
-	seedVariant(t, db, seeded.ID, "LAP-001", "16GB", decimal.NewFromInt(15000000))
+	variant := seedVariant(t, db, seeded.ID, "LAP-001", "16GB", decimal.NewFromInt(15000000))
+	image := models.ProductImage{ID: uuid.New(), ProductID: seeded.ID, ProductVariantID: &variant.ID, StorageKey: "laptop/variant.jpg"}
+	if err := db.Create(&image).Error; err != nil {
+		t.Fatalf("failed to seed variant image: %v", err)
+	}
 
 	found, err := repo.FindByID(context.Background(), seeded.ID)
 	if err != nil {
@@ -129,6 +133,9 @@ func TestProductRepositoryFindByID(t *testing.T) {
 
 	if len(found.Variants) != 1 || found.Variants[0].SKU != "LAP-001" {
 		t.Fatalf("FindByID() variants = %v, want 1 variant with SKU LAP-001", found.Variants)
+	}
+	if len(found.Variants[0].Images) != 1 || found.Variants[0].Images[0].ID != image.ID {
+		t.Fatalf("FindByID() variant images = %v, want seeded image", found.Variants[0].Images)
 	}
 }
 
@@ -210,6 +217,7 @@ func TestProductRepositoryFindAll(t *testing.T) {
 
 	category := seedCategory(t, db, "toys", "toys")
 	seeded := seedProduct(t, db, category.ID, "lego", "lego")
+	seedVariant(t, db, seeded.ID, "LEGO-001", "classic", decimal.NewFromInt(250000))
 
 	products, err := repo.FindAll(context.Background())
 	if err != nil {
@@ -223,6 +231,10 @@ func TestProductRepositoryFindAll(t *testing.T) {
 
 			if p.Category.ID != category.ID {
 				t.Fatalf("FindAll() category = %v, want %v", p.Category.ID, category.ID)
+			}
+
+			if len(p.Variants) != 1 || p.Variants[0].SKU != "LEGO-001" {
+				t.Fatalf("FindAll() variants = %v, want 1 variant with SKU LEGO-001", p.Variants)
 			}
 		}
 	}

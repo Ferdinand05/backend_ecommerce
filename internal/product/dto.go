@@ -31,12 +31,18 @@ type ProductVariantStockResponse struct {
 }
 
 type ProductVariantResponse struct {
-	ID        uuid.UUID                    `json:"id"`
-	SKU       string                       `json:"sku"`
-	Name      string                       `json:"name"`
-	Price     decimal.Decimal              `json:"price"`
-	IsActive  bool                         `json:"is_active"`
-	Inventory *ProductVariantStockResponse `json:"inventory,omitempty"`
+	ID       uuid.UUID       `json:"id"`
+	SKU      string          `json:"sku"`
+	Name     string          `json:"name"`
+	Price    decimal.Decimal `json:"price"`
+	IsActive bool            `json:"is_active"`
+}
+
+type ProductVariantDetailResponse struct {
+	ProductVariantResponse
+	WeightGrams int                          `json:"weight_grams"`
+	Inventory   *ProductVariantStockResponse `json:"inventory,omitempty"`
+	Images      []ProductImageResponse       `json:"images"`
 }
 
 type ProductImageResponse struct {
@@ -47,19 +53,29 @@ type ProductImageResponse struct {
 }
 
 type ProductResponse struct {
-	ID          uuid.UUID              `json:"id"`
-	CategoryID  uuid.UUID              `json:"category_id"`
-	Name        string                 `json:"name"`
-	Slug        string                 `json:"slug"`
-	Description *string                `json:"description"`
-	IsActive    bool                   `json:"is_active"`
-	Category    *CategoryResponse      `json:"category"`
-	Images      []ProductImageResponse `json:"images"`
-	CreatedAt   time.Time              `json:"created_at"`
-	UpdatedAt   time.Time              `json:"updated_at"`
+	ID          uuid.UUID                `json:"id"`
+	CategoryID  uuid.UUID                `json:"category_id"`
+	Name        string                   `json:"name"`
+	Slug        string                   `json:"slug"`
+	Description *string                  `json:"description"`
+	IsActive    bool                     `json:"is_active"`
+	Category    *CategoryResponse        `json:"category"`
+	Images      []ProductImageResponse   `json:"images"`
+	Variants    []ProductVariantResponse `json:"variants"`
+	CreatedAt   time.Time                `json:"created_at"`
+	UpdatedAt   time.Time                `json:"updated_at"`
 }
 
 type ProductDetailResponse struct {
-	ProductResponse
-	Variants []ProductVariantResponse `json:"variants"`
+	ID          uuid.UUID                      `json:"id"`
+	CategoryID  uuid.UUID                      `json:"category_id"`
+	Name        string                         `json:"name"`
+	Slug        string                         `json:"slug"`
+	Description *string                        `json:"description"`
+	IsActive    bool                           `json:"is_active"`
+	Category    *CategoryResponse              `json:"category"`
+	Images      []ProductImageResponse         `json:"images"`
+	Variants    []ProductVariantDetailResponse `json:"variants"`
+	CreatedAt   time.Time                      `json:"created_at"`
+	UpdatedAt   time.Time                      `json:"updated_at"`
 }
