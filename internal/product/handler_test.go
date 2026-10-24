@@ -117,7 +117,8 @@ func TestHandlerFindAll(t *testing.T) {
 	desc := "portable computer"
 	svc := &fakeService{findAllRes: []models.Product{
 		{ID: uuid.New(), Name: "laptop", Slug: "laptop", Description: &desc, IsActive: true,
-			Category: models.Category{Name: "electronics", Slug: "electronics"}},
+			Category: models.Category{Name: "electronics", Slug: "electronics"},
+			Variants: []models.ProductVariant{{ID: uuid.New(), SKU: "LAP-001", Name: "16GB", Price: decimal.NewFromInt(15000000), IsActive: true}}},
 	}}
 
 	w := doRequest(t, newTestRouter(svc), http.MethodGet, "/api/v1/products", "")
@@ -142,6 +143,9 @@ func TestHandlerFindAll(t *testing.T) {
 	if got.Products[0].Category == nil || got.Products[0].Category.Slug != "electronics" {
 		t.Fatalf("category = %v, want electronics", got.Products[0].Category)
 	}
+	if len(got.Products[0].Variants) != 1 || got.Products[0].Variants[0].SKU != "LAP-001" {
+		t.Fatalf("variants = %v, want compact variant LAP-001", got.Products[0].Variants)
+	}
 }
 
 func TestHandlerFindAllError(t *testing.T) {
@@ -162,7 +166,9 @@ func TestHandlerFindByID(t *testing.T) {
 		Slug:     "laptop",
 		Category: models.Category{Name: "electronics", Slug: "electronics"},
 		Variants: []models.ProductVariant{
-			{ID: uuid.New(), SKU: "LAP-001", Name: "16GB", Price: decimal.NewFromInt(15000000)},
+			{ID: uuid.New(), SKU: "LAP-001", Name: "16GB", Price: decimal.NewFromInt(15000000), WeightGrams: 1200,
+				Inventory: &models.InventoryItem{Quantity: 8, ReservedQuantity: 2},
+				Images:    []models.ProductImage{{ID: uuid.New(), StorageKey: "variants/lap.jpg", SortOrder: 1}}},
 		},
 	}}
 
@@ -187,6 +193,13 @@ func TestHandlerFindByID(t *testing.T) {
 
 	if len(got.Product.Variants) != 1 || got.Product.Variants[0].SKU != "LAP-001" {
 		t.Fatalf("variants = %v, want 1 variant with SKU LAP-001", got.Product.Variants)
+	}
+	variant := got.Product.Variants[0]
+	if variant.WeightGrams != 1200 || variant.Inventory == nil || variant.Inventory.Quantity != 8 {
+		t.Fatalf("variant detail = %+v, want weight and inventory", variant)
+	}
+	if len(variant.Images) != 1 || variant.Images[0].URL != "https://cdn.example.com/variants/lap.jpg" {
+		t.Fatalf("variant images = %+v, want generated image URL", variant.Images)
 	}
 }
 
@@ -214,7 +227,9 @@ func TestHandlerFindBySlug(t *testing.T) {
 		Slug:     "laptop",
 		Category: models.Category{Name: "electronics", Slug: "electronics"},
 		Variants: []models.ProductVariant{
-			{ID: uuid.New(), SKU: "LAP-001", Name: "16GB", Price: decimal.NewFromInt(15000000)},
+			{ID: uuid.New(), SKU: "LAP-001", Name: "16GB", Price: decimal.NewFromInt(15000000), WeightGrams: 1200,
+				Inventory: &models.InventoryItem{Quantity: 8, ReservedQuantity: 2},
+				Images:    []models.ProductImage{{ID: uuid.New(), StorageKey: "variants/lap.jpg", SortOrder: 1}}},
 		},
 	}}
 
@@ -239,6 +254,13 @@ func TestHandlerFindBySlug(t *testing.T) {
 
 	if len(got.Product.Variants) != 1 || got.Product.Variants[0].SKU != "LAP-001" {
 		t.Fatalf("variants = %v, want 1 variant with SKU LAP-001", got.Product.Variants)
+	}
+	variant := got.Product.Variants[0]
+	if variant.WeightGrams != 1200 || variant.Inventory == nil || variant.Inventory.Quantity != 8 {
+		t.Fatalf("variant detail = %+v, want weight and inventory", variant)
+	}
+	if len(variant.Images) != 1 || variant.Images[0].URL != "https://cdn.example.com/variants/lap.jpg" {
+		t.Fatalf("variant images = %+v, want generated image URL", variant.Images)
 	}
 }
 

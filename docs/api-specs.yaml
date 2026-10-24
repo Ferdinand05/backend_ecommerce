@@ -1,0 +1,2194 @@
+openapi: 3.0.3
+info:
+  title: Ecommerce Backend API
+  version: 1.0.0
+  description: |
+    Ecommerce API for public catalog, customer checkout, and admin operations.
+    Authenticated endpoints use JWT Bearer tokens. Admin endpoints additionally
+    require the `admin` role. Paths include `/api/v1`.
+servers:
+  - url: http://13.211.208.214/api/v1
+    description: API v1
+
+tags:
+  - name: Public - Auth
+  - name: Public - Categories
+  - name: Public - Products
+  - name: Public - Product Variants
+  - name: Public - Product Images
+  - name: Public - Webhooks
+  - name: Customer - Shipping
+  - name: Customer - Cart
+  - name: Customer - Checkout
+  - name: Customer - Orders
+  - name: Customer - Payments
+  - name: Customer - Shipments
+  - name: Admin - User Management
+  - name: Admin - Roles
+  - name: Admin - Categories
+  - name: Admin - Products
+  - name: Admin - Product Variants
+  - name: Admin - Product Images
+  - name: Admin - Inventory
+  - name: Admin - Orders
+  - name: Admin - Payments
+  - name: Admin - Shipments
+
+paths:
+  /auth/register:
+    post:
+      tags: [Public - Auth]
+      summary: Register account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RegisterResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /auth/login:
+    post:
+      tags: [Public - Auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: Auth tokens and user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /auth/email-verification/verify:
+    post:
+      tags: [Public - Auth]
+      summary: Verify email address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VerifyEmailRequest" }
+      responses:
+        "200":
+          description: Email verified
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /auth/refresh:
+    post:
+      tags: [Public - Auth]
+      summary: Refresh JWT tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RefreshTokenRequest" }
+      responses:
+        "200":
+          description: Refreshed tokens
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RefreshResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /auth/logout:
+    post:
+      tags: [Public - Auth]
+      summary: Revoke refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RefreshTokenRequest" }
+      responses:
+        "204": { description: Logged out }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /auth/email-verification/resend:
+    post:
+      tags: [Public - Auth]
+      summary: Resend email verification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EmailRequest" }
+      responses:
+        "204": { description: Verification email queued }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /auth/password/forgot:
+    post:
+      tags: [Public - Auth]
+      summary: Request password reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EmailRequest" }
+      responses:
+        "204": { description: Request accepted }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /auth/password/reset:
+    post:
+      tags: [Public - Auth]
+      summary: Reset password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ResetPasswordRequest" }
+      responses:
+        "204": { description: Password reset }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /categories:
+    get:
+      tags: [Public - Categories]
+      summary: List categories
+      responses:
+        "200":
+          description: Categories
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CategoriesResponse" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /categories/{id}:
+    parameters:
+      - $ref: "#/components/parameters/UUIDPath"
+    get:
+      tags: [Public - Categories]
+      summary: Get category by ID
+      responses:
+        "200":
+          description: Category
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CategoryEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /categories/slug/{slug}:
+    get:
+      tags: [Public - Categories]
+      summary: Get category by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Category
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CategoryEnvelope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /products:
+    get:
+      tags: [Public - Products]
+      summary: List products
+      responses:
+        "200":
+          description: Products
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductsResponse" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /products/{product_id}:
+    parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Public - Products]
+      summary: Get product by ID
+      responses:
+        "200":
+          description: Product detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductDetailEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /products/slug/{slug}:
+    get:
+      tags: [Public - Products]
+      summary: Get product by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Product detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductDetailEnvelope" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /products/{product_id}/variants:
+    parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Public - Product Variants]
+      summary: List product variants
+      responses:
+        "200":
+          description: Variants
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VariantsResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /products/{product_id}/variants/{variant_id}:
+    parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: variant_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Public - Product Variants]
+      summary: Get variant
+      responses:
+        "200":
+          description: Variant
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VariantEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /products/{product_id}/images:
+    parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Public - Product Images]
+      summary: List product images
+      responses:
+        "200":
+          description: Images
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImagesResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "500": { $ref: "#/components/responses/ServerError" }
+    post:
+      tags: [Public - Product Images]
+      summary: Upload product image
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: "#/components/schemas/ImageUploadRequest" }
+      responses:
+        "201":
+          description: Image uploaded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImageEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "413": { description: Image too large }
+        "415": { description: Unsupported image type }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /products/{product_id}/images/{image_id}:
+    parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: image_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Public - Product Images]
+      summary: Get product image
+      responses:
+        "200":
+          description: Image
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImageEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /products/{product_id}/variants/{variant_id}/images:
+    parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: variant_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Public - Product Images]
+      summary: List variant images
+      responses:
+        "200":
+          description: Images
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImagesResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /products/{product_id}/variants/{variant_id}/images/{image_id}:
+    parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: variant_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: image_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Public - Product Images]
+      summary: Get variant image
+      responses:
+        "200":
+          description: Image
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImageEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /shipping/areas:
+    get:
+      tags: [Customer - Shipping]
+      summary: Search shipping areas
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Matching areas
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AreasResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500": { $ref: "#/components/responses/ServerError" }
+        "502": { description: Shipping provider error }
+  /shipping/rates:
+    post:
+      tags: [Customer - Shipping]
+      summary: Calculate shipping rates
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CalculateRatesRequest" }
+      responses:
+        "200":
+          description: Rates
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RatesResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { description: Product variants unavailable for shipping }
+        "500": { $ref: "#/components/responses/ServerError" }
+        "502": { description: Shipping provider error }
+
+  /cart:
+    get:
+      tags: [Customer - Cart]
+      summary: Get current user's cart
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: Cart
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CartEnvelope" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500": { $ref: "#/components/responses/ServerError" }
+    delete:
+      tags: [Customer - Cart]
+      summary: Clear current user's cart
+      security: [{ BearerAuth: [] }]
+      responses:
+        "204": { description: Cart cleared }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /cart/items:
+    post:
+      tags: [Customer - Cart]
+      summary: Add item to cart
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AddCartItemRequest" }
+      responses:
+        "201":
+          description: Item added
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CartItemEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /cart/items/{item_id}/increase:
+    post:
+      tags: [Customer - Cart]
+      summary: Increase cart item quantity
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Updated item
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CartItemEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /cart/items/{item_id}/decrease:
+    post:
+      tags: [Customer - Cart]
+      summary: Decrease cart item quantity
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Updated cart item
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CartItemEnvelope" }
+        "204": { description: Item removed from cart }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /cart/items/{item_id}:
+    delete:
+      tags: [Customer - Cart]
+      summary: Remove item from cart
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204": { description: Item removed }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /checkout/preview:
+    post:
+      tags: [Customer - Checkout]
+      summary: Preview current cart checkout
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: Checkout preview
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PreviewResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { description: One or more items unavailable }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /me/orders:
+    post:
+      tags: [Customer - Orders]
+      summary: Create order from cart
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateOrderRequest" }
+      responses:
+        "201":
+          description: Order created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { description: Cart item or shipping service unavailable }
+        "500": { $ref: "#/components/responses/ServerError" }
+    get:
+      tags: [Customer - Orders]
+      summary: List current user's orders
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Orders and pagination metadata
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderListResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /me/orders/{order_id}:
+    get:
+      tags: [Customer - Orders]
+      summary: Get own order
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Order detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /me/orders/{order_id}/payment:
+    post:
+      tags: [Customer - Payments]
+      summary: Create payment for own order
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Payment checkout details
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CreatePaymentResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "410": { description: Payment period expired }
+        "500": { $ref: "#/components/responses/ServerError" }
+        "502": { description: Payment provider state could not be verified }
+  /me/orders/{order_id}/shipment:
+    get:
+      tags: [Customer - Shipments]
+      summary: Get shipment for own order
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Shipment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShipmentEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /me/shipments/{shipment_id}:
+    get:
+      tags: [Customer - Shipments]
+      summary: Get own shipment
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: shipment_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Shipment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShipmentEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /me/shipments/{shipment_id}/tracking:
+    get:
+      tags: [Customer - Shipments]
+      summary: Track own shipment
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: shipment_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Tracking history
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShipmentTrackingResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /webhooks/xendit:
+    post:
+      tags: [Public - Webhooks]
+      summary: Xendit invoice callback
+      description: Public route; verified using the Xendit callback token header, not JWT.
+      parameters:
+        - name: x-callback-token
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InvoiceCallback" }
+      responses:
+        "200":
+          description: Callback processed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WebhookResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /admin/users:
+    get:
+      tags: [Admin - User Management]
+      summary: List users
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/UserResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/ServerError" }
+    post:
+      tags: [Public - Auth]
+      summary: Create user
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateUserRequest" }
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /admin/users/{id}:
+    get:
+      tags: [Public - Auth]
+      summary: Get user
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/UUIDPath"
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /admin/roles:
+    get:
+      tags: [Admin - Roles]
+      summary: List roles
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: Roles
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/RoleResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /admin/roles/{id}:
+    parameters:
+      - $ref: "#/components/parameters/UUIDPath"
+    get:
+      tags: [Admin - Roles]
+      summary: Get role
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: Role
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RoleResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+    put:
+      tags: [Admin - Roles]
+      summary: Update role
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateRoleRequest" }
+      responses:
+        "200":
+          description: Role updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RoleResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+    delete:
+      tags: [Admin - Roles]
+      summary: Delete role
+      security: [{ BearerAuth: [] }]
+      responses:
+        "204": { description: Role deleted }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /admin/categories:
+    post:
+      tags: [Admin - Categories]
+      summary: Create category
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CategoryRequest" }
+      responses:
+        "201":
+          description: Category created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CategoryEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /admin/categories/{id}:
+    parameters:
+      - $ref: "#/components/parameters/UUIDPath"
+    put:
+      tags: [Admin - Categories]
+      summary: Update category
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CategoryRequest" }
+      responses:
+        "200":
+          description: Category updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CategoryEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+    delete:
+      tags: [Admin - Categories]
+      summary: Delete category
+      security: [{ BearerAuth: [] }]
+      responses:
+        "204": { description: Category deleted }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /admin/products:
+    post:
+      tags: [Admin - Products]
+      summary: Create product
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProductRequest" }
+      responses:
+        "201":
+          description: Product created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /admin/products/{product_id}:
+    parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      tags: [Admin - Products]
+      summary: Update product
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProductRequest" }
+      responses:
+        "200":
+          description: Product updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+    delete:
+      tags: [Admin - Products]
+      summary: Delete product
+      security: [{ BearerAuth: [] }]
+      responses:
+        "204": { description: Product deleted }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /admin/products/{product_id}/variants:
+    parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Admin - Product Variants]
+      summary: Create product variant
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProductVariantRequest" }
+      responses:
+        "201":
+          description: Variant created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VariantEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /admin/products/{product_id}/variants/{variant_id}:
+    parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: variant_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      tags: [Admin - Product Variants]
+      summary: Update product variant
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProductVariantRequest" }
+      responses:
+        "200":
+          description: Variant updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VariantEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+    delete:
+      tags: [Admin - Product Variants]
+      summary: Delete variant
+      security: [{ BearerAuth: [] }]
+      responses:
+        "204": { description: Variant deleted }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /admin/products/{product_id}/images:
+    parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Admin - Product Images]
+      summary: Upload product image
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: "#/components/schemas/ImageUploadRequest" }
+      responses:
+        "201":
+          description: Image uploaded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImageEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "413": { description: Image too large }
+        "415": { description: Unsupported image type }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /admin/products/{product_id}/images/{image_id}:
+    parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: image_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Admin - Product Images]
+      summary: Delete product image
+      security: [{ BearerAuth: [] }]
+      responses:
+        "204": { description: Image deleted }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /admin/products/{product_id}/variants/{variant_id}/images:
+    parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: variant_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Admin - Product Images]
+      summary: Upload variant image
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: "#/components/schemas/ImageUploadRequest" }
+      responses:
+        "201":
+          description: Image uploaded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImageEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "413": { description: Image too large }
+        "415": { description: Unsupported image type }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /admin/products/{product_id}/variants/{variant_id}/images/{image_id}:
+    parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: variant_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: image_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Admin - Product Images]
+      summary: Delete variant image
+      security: [{ BearerAuth: [] }]
+      responses:
+        "204": { description: Image deleted }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /admin/products/{product_id}/variants/{variant_id}/inventory:
+    parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: variant_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Admin - Inventory]
+      summary: Get variant inventory
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: Inventory
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InventoryEnvelope" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /admin/products/{product_id}/variants/{variant_id}/inventory/movements:
+    parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: variant_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Admin - Inventory]
+      summary: List inventory movements
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: Movements
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MovementsEnvelope" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+    post:
+      tags: [Admin - Inventory]
+      summary: Create stock movement
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateMovementRequest" }
+      responses:
+        "201":
+          description: Movement created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MovementEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /admin/products/{product_id}/variants/{variant_id}/inventory/movements/{movement_id}:
+    parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: variant_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: movement_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Admin - Inventory]
+      summary: Get stock movement
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200":
+          description: Movement
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MovementEnvelope" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /admin/stock-movements:
+    get:
+      tags: [Admin - Inventory]
+      summary: List all stock movements
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: type
+          in: query
+          schema: { type: string, enum: [RESTOCK, SALE, RETURN, DAMAGE, ADJUSTMENT, ORDER_CANCEL, RESERVE] }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Movements page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MovementListResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /admin/orders:
+    get:
+      tags: [Admin - Orders]
+      summary: List all orders
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: order_number
+          in: query
+          schema: { type: string }
+        - name: user_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: start_date
+          in: query
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Orders page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderListResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /admin/orders/{order_id}:
+    get:
+      tags: [Admin - Orders]
+      summary: Get any order
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Order detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /admin/orders/{order_id}/histories:
+    get:
+      tags: [Admin - Orders]
+      summary: List order status histories
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Status history
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderHistoriesResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /admin/orders/{order_id}/status:
+    patch:
+      tags: [Admin - Orders]
+      summary: Update order status
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateOrderStatusRequest" }
+      responses:
+        "200":
+          description: Updated order
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /admin/payments:
+    get:
+      tags: [Admin - Payments]
+      summary: List payments
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [PENDING, PAID, EXPIRED, FAILED] }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Payments page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentListResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /admin/shipments:
+    get:
+      tags: [Admin - Shipments]
+      summary: List shipments
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Shipments page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShipmentListResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /admin/shipments/{shipment_id}:
+    get:
+      tags: [Admin - Shipments]
+      summary: Get shipment and order summary
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: shipment_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Shipment detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShipmentDetailResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /admin/shipments/{shipment_id}/tracking:
+    get:
+      tags: [Admin - Shipments]
+      summary: Get live shipment tracking detail
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: shipment_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Tracking detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrackingDetailResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /admin/shipments/{shipment_id}/retry:
+    post:
+      tags: [Admin - Shipments]
+      summary: Retry shipment creation
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: shipment_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Shipment retry result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CreateShipmentResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+        "502": { description: Shipment provider state could not be verified }
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    UUIDPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Page:
+      name: page
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, default: 1 }
+    PageSize:
+      name: page_size
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
+  responses:
+    BadRequest:
+      description: Invalid request, parameter, or body
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    Unauthorized:
+      description: Authentication failed or token invalid
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    Forbidden:
+      description: Authenticated user lacks admin role
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    Conflict:
+      description: State conflict or resource already exists
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    ServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error: { type: string }
+      required: [error]
+    MessageResponse:
+      type: object
+      properties:
+        message: { type: string }
+      required: [message]
+    RegisterRequest:
+      type: object
+      required: [email, password, first_name]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+        first_name: { type: string }
+        last_name: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+    RefreshTokenRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token: { type: string }
+    VerifyEmailRequest:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string }
+    ResetPasswordRequest:
+      type: object
+      required: [token, new_password]
+      properties:
+        token: { type: string }
+        new_password: { type: string, minLength: 8 }
+    EmailRequest:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email }
+    LoginResponse:
+      type: object
+      required: [access_token, refresh_token, expires_in, user]
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        expires_in: { type: integer, format: int64 }
+        user: { $ref: "#/components/schemas/UserResponse" }
+    RefreshResponse:
+      type: object
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        expires_in: { type: integer, format: int64 }
+      required: [access_token, refresh_token, expires_in]
+    RegisterResponse:
+      type: object
+      properties:
+        message: { type: string }
+      required: [message]
+    UserResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        first_name: { type: string }
+        last_name: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        role: { $ref: "#/components/schemas/RoleResponse" }
+        status: { type: string }
+        email_verified_at: { type: string, format: date-time, nullable: true }
+        last_login_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CreateUserRequest:
+      type: object
+      required: [email, password, first_name, role_id]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+        first_name: { type: string }
+        last_name: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        role_id: { type: string, format: uuid }
+    RoleResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+    UpdateRoleRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+    CategoryRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, maxLength: 100 }
+        description: { type: string, nullable: true }
+    CategoryResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { type: string }
+        description: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CategoryEnvelope:
+      type: object
+      properties:
+        category: { $ref: "#/components/schemas/CategoryResponse" }
+    CategoriesResponse:
+      type: object
+      properties:
+        categories:
+          type: array
+          items: { $ref: "#/components/schemas/CategoryResponse" }
+    ProductRequest:
+      type: object
+      required: [category_id, name]
+      properties:
+        category_id: { type: string, format: uuid }
+        name: { type: string, maxLength: 150 }
+        description: { type: string, nullable: true }
+    ProductCategory:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { type: string }
+    ProductImageSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        url: { type: string, format: uri }
+        alt: { type: string, nullable: true }
+        sort_order: { type: integer }
+    ProductStock:
+      type: object
+      properties:
+        quantity: { type: integer }
+        reserved_quantity: { type: integer }
+    ProductVariantSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        sku: { type: string }
+        name: { type: string }
+        price: { type: number }
+        is_active: { type: boolean }
+    ProductVariantDetail:
+      allOf:
+        - { $ref: "#/components/schemas/ProductVariantSummary" }
+        - type: object
+          properties:
+            weight_grams: { type: integer }
+            inventory: { $ref: "#/components/schemas/ProductStock" }
+            images:
+              type: array
+              items: { $ref: "#/components/schemas/ProductImageSummary" }
+    ProductResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        category_id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { type: string }
+        description: { type: string, nullable: true }
+        is_active: { type: boolean }
+        category: { $ref: "#/components/schemas/ProductCategory" }
+        images:
+          type: array
+          items: { $ref: "#/components/schemas/ProductImageSummary" }
+        variants:
+          type: array
+          items: { $ref: "#/components/schemas/ProductVariantSummary" }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    ProductDetail:
+      allOf:
+        - { $ref: "#/components/schemas/ProductResponse" }
+        - type: object
+          properties:
+            variants:
+              type: array
+              items: { $ref: "#/components/schemas/ProductVariantDetail" }
+    ProductEnvelope:
+      type: object
+      properties:
+        product: { $ref: "#/components/schemas/ProductResponse" }
+    ProductDetailEnvelope:
+      type: object
+      properties:
+        product: { $ref: "#/components/schemas/ProductDetail" }
+    ProductsResponse:
+      type: object
+      properties:
+        products:
+          type: array
+          items: { $ref: "#/components/schemas/ProductResponse" }
+    ProductVariantRequest:
+      type: object
+      required: [sku, name, price, weight_grams]
+      properties:
+        sku: { type: string, maxLength: 100 }
+        name: { type: string, maxLength: 150 }
+        price: { type: number, format: decimal }
+        weight_grams: { type: integer, minimum: 1, maximum: 100000 }
+    ProductVariantResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        product_id: { type: string, format: uuid }
+        sku: { type: string }
+        name: { type: string }
+        price: { type: number }
+        is_active: { type: boolean }
+        weight_grams: { type: integer }
+    VariantEnvelope:
+      type: object
+      properties:
+        variant: { $ref: "#/components/schemas/ProductVariantResponse" }
+    VariantsResponse:
+      type: object
+      properties:
+        variants:
+          type: array
+          items: { $ref: "#/components/schemas/ProductVariantResponse" }
+    ProductImageResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        product_id: { type: string, format: uuid }
+        product_variant_id: { type: string, format: uuid, nullable: true }
+        url: { type: string, format: uri }
+        alt: { type: string, nullable: true }
+        sort_order: { type: integer }
+    ImageEnvelope:
+      type: object
+      properties:
+        image: { $ref: "#/components/schemas/ProductImageResponse" }
+    ImagesResponse:
+      type: object
+      properties:
+        images:
+          type: array
+          items: { $ref: "#/components/schemas/ProductImageResponse" }
+    ImageUploadRequest:
+      type: object
+      required: [file]
+      properties:
+        file: { type: string, format: binary }
+        alt: { type: string }
+        sort_order: { type: integer }
+    InventoryResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        product_variant_id: { type: string, format: uuid }
+        quantity: { type: integer }
+        reserved_quantity: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    InventoryEnvelope:
+      type: object
+      properties:
+        inventory: { $ref: "#/components/schemas/InventoryResponse" }
+    StockMovement:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        inventory_item_id: { type: string, format: uuid }
+        type: { type: string }
+        quantity: { type: integer }
+        note: { type: string, nullable: true }
+        reference_type: { type: string, nullable: true }
+        reference_id: { type: string, format: uuid, nullable: true }
+        created_at: { type: string, format: date-time }
+    CreateMovementRequest:
+      type: object
+      required: [type, quantity]
+      properties:
+        type: { type: string, enum: [RESTOCK, SALE, RETURN, DAMAGE, ADJUSTMENT, ORDER_CANCEL] }
+        quantity: { type: integer }
+        note: { type: string }
+        reference_type: { type: string }
+        reference_id: { type: string, format: uuid }
+    MovementEnvelope:
+      type: object
+      properties:
+        movement: { $ref: "#/components/schemas/StockMovement" }
+    MovementsEnvelope:
+      type: object
+      properties:
+        movements:
+          type: array
+          items: { $ref: "#/components/schemas/StockMovement" }
+    MovementListResponse:
+      type: object
+      properties:
+        movements:
+          type: array
+          items: { $ref: "#/components/schemas/StockMovement" }
+        meta: { $ref: "#/components/schemas/PaginationMeta" }
+    AddCartItemRequest:
+      type: object
+      required: [product_variant_id]
+      properties:
+        product_variant_id: { type: string, format: uuid }
+    CartItemResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        product_variant_id: { type: string, format: uuid }
+        quantity: { type: integer }
+        sku: { type: string }
+        name: { type: string }
+        price: { type: number }
+        product_id: { type: string, format: uuid }
+        product_name: { type: string }
+    CartEnvelope:
+      type: object
+      properties:
+        cart: { $ref: "#/components/schemas/CartResponse" }
+    CartResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/CartItemResponse" }
+    CartItemEnvelope:
+      type: object
+      properties:
+        item: { $ref: "#/components/schemas/CartItemResponse" }
+    PreviewResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/PreviewItem" }
+        subtotal: { type: number }
+    PreviewItem:
+      type: object
+      properties:
+        product_variant_id: { type: string, format: uuid }
+        product_name: { type: string }
+        variant_name: { type: string }
+        sku: { type: string }
+        quantity: { type: integer }
+        unit_price: { type: number }
+        subtotal: { type: number }
+        weight_grams: { type: integer }
+        available_stock: { type: integer }
+    AreasResponse:
+      type: object
+      properties:
+        areas:
+          type: array
+          items: { $ref: "#/components/schemas/Area" }
+    Area:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        postal_code: { type: integer }
+    CalculateRatesRequest:
+      type: object
+      required: [destination_area_id, items]
+      properties:
+        destination_area_id: { type: string }
+        items:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/ShippingRateItem" }
+    ShippingRateItem:
+      type: object
+      required: [product_variant_id, quantity]
+      properties:
+        product_variant_id: { type: string }
+        quantity: { type: integer, minimum: 1 }
+    RatesResponse:
+      type: object
+      properties:
+        rates:
+          type: array
+          items: { $ref: "#/components/schemas/ShippingRate" }
+    ShippingRate:
+      type: object
+      properties:
+        courier_code: { type: string }
+        courier_name: { type: string }
+        courier_service_code: { type: string }
+        courier_service_name: { type: string }
+        description: { type: string }
+        price: { type: integer, format: int64 }
+        shipment_duration_range: { type: string }
+        shipment_duration_unit: { type: string }
+    CreateOrderRequest:
+      type: object
+      required: [recipient_name, phone, address, city, province, postal_code, destination_area_id, destination_area_name, courier_code, courier_service_code]
+      properties:
+        recipient_name: { type: string, maxLength: 150 }
+        phone: { type: string, maxLength: 30 }
+        address: { type: string }
+        city: { type: string, maxLength: 100 }
+        province: { type: string, maxLength: 100 }
+        postal_code: { type: string, maxLength: 20 }
+        destination_area_id: { type: string }
+        destination_area_name: { type: string, maxLength: 255 }
+        courier_code: { type: string }
+        courier_service_code: { type: string }
+    OrderResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        order_number: { type: string }
+        status: { type: string }
+        subtotal: { type: number }
+        shipping_cost: { type: number }
+        discount_amount: { type: number }
+        total_amount: { type: number }
+        courier_code: { type: string }
+        courier_name: { type: string }
+        courier_service_code: { type: string }
+        courier_service_name: { type: string }
+        payment_expires_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    OrderItem:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        product_variant_id: { type: string, format: uuid }
+        product_name: { type: string }
+        variant_name: { type: string }
+        sku: { type: string }
+        price: { type: number }
+        quantity: { type: integer }
+        subtotal: { type: number }
+        weight_grams: { type: integer }
+    OrderAddress:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        recipient_name: { type: string }
+        phone: { type: string }
+        address: { type: string }
+        city: { type: string }
+        province: { type: string }
+        postal_code: { type: string }
+        latitude: { type: number, nullable: true }
+        longitude: { type: number, nullable: true }
+        biteship_area_id: { type: string, nullable: true }
+    OrderStatusHistory:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string }
+        note: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+    OrderDetail:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        order_number: { type: string }
+        status: { type: string }
+        subtotal: { type: number }
+        shipping_cost: { type: number }
+        discount_amount: { type: number }
+        total_amount: { type: number }
+        courier_code: { type: string }
+        courier_name: { type: string }
+        courier_service_code: { type: string }
+        courier_service_name: { type: string }
+        payment_expires_at: { type: string, format: date-time, nullable: true }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/OrderItem" }
+        address: { $ref: "#/components/schemas/OrderAddress" }
+        status_histories:
+          type: array
+          items: { $ref: "#/components/schemas/OrderStatusHistory" }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    OrderEnvelope:
+      type: object
+      properties:
+        order: { $ref: "#/components/schemas/OrderDetail" }
+    PaginationMeta:
+      type: object
+      properties:
+        total: { type: integer, format: int64 }
+        page: { type: integer }
+        page_size: { type: integer }
+    OrderListResponse:
+      type: object
+      properties:
+        orders:
+          type: array
+          items: { $ref: "#/components/schemas/OrderResponse" }
+        meta: { $ref: "#/components/schemas/PaginationMeta" }
+    OrderHistoriesResponse:
+      type: object
+      properties:
+        order_id: { type: string, format: uuid }
+        histories:
+          type: array
+          items: { $ref: "#/components/schemas/OrderStatusHistory" }
+    UpdateOrderStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string }
+        note: { type: string, nullable: true }
+    CreatePaymentResult:
+      type: object
+      properties:
+        payment_id: { type: string, format: uuid }
+        order_id: { type: string, format: uuid }
+        status: { type: string }
+        amount: { type: string }
+        currency: { type: string }
+        checkout_url: { type: string, format: uri }
+        expires_at: { type: string, format: date-time, nullable: true }
+    PaymentResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        order_id: { type: string, format: uuid }
+        provider: { type: string }
+        external_id: { type: string }
+        provider_invoice_id: { type: string, nullable: true }
+        status: { type: string }
+        amount: { type: string }
+        currency: { type: string }
+        checkout_url: { type: string, format: uri, nullable: true }
+        expires_at: { type: string, format: date-time, nullable: true }
+        paid_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    PaymentListResponse:
+      type: object
+      properties:
+        payments:
+          type: array
+          items: { $ref: "#/components/schemas/PaymentResponse" }
+        meta: { $ref: "#/components/schemas/PaginationMeta" }
+    InvoiceCallback:
+      type: object
+      required: [id, external_id, status, amount, currency]
+      properties:
+        id: { type: string }
+        external_id: { type: string }
+        status: { type: string }
+        amount: { type: number, format: double }
+        currency: { type: string }
+        paid_at: { type: string, format: date-time, nullable: true }
+        payment_method: { type: string }
+    WebhookResponse:
+      type: object
+      properties:
+        status: { type: string, enum: [ok] }
+    ShipmentResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        order_id: { type: string, format: uuid }
+        provider: { type: string }
+        provider_order_id: { type: string, nullable: true }
+        courier_company: { type: string, nullable: true }
+        courier_type: { type: string, nullable: true }
+        tracking_number: { type: string, nullable: true }
+        tracking_url: { type: string, format: uri, nullable: true }
+        status: { type: string }
+        provider_status: { type: string, nullable: true }
+        shipping_cost: { type: number }
+        currency: { type: string }
+        shipped_at: { type: string, format: date-time, nullable: true }
+        delivered_at: { type: string, format: date-time, nullable: true }
+        cancelled_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    ShipmentEnvelope:
+      type: object
+      properties:
+        shipment: { $ref: "#/components/schemas/ShipmentResponse" }
+    ShipmentTrackingEvent:
+      type: object
+      properties:
+        status: { type: string }
+        description: { type: string }
+        occurred_at: { type: string, format: date-time }
+    ShipmentTrackingResponse:
+      type: object
+      properties:
+        shipment_id: { type: string }
+        order_id: { type: string }
+        status: { type: string }
+        tracking_number: { type: string, nullable: true }
+        tracking_url: { type: string, format: uri, nullable: true }
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/ShipmentTrackingEvent" }
+    ShipmentListResponse:
+      type: object
+      properties:
+        shipments:
+          type: array
+          items: { $ref: "#/components/schemas/ShipmentResponse" }
+        meta: { $ref: "#/components/schemas/PaginationMeta" }
+    OrderSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        order_number: { type: string }
+        status: { type: string }
+        total_amount: { type: number }
+        created_at: { type: string, format: date-time }
+    ShipmentDetailResponse:
+      type: object
+      properties:
+        shipment: { $ref: "#/components/schemas/ShipmentResponse" }
+        order: { $ref: "#/components/schemas/OrderSummary" }
+    TrackingDetailCourier:
+      type: object
+      properties:
+        company: { type: string }
+        type: { type: string }
+        driver_name: { type: string }
+        driver_phone: { type: string }
+        driver_photo_url: { type: string, format: uri }
+        driver_plate_number: { type: string }
+    TrackingDetailLocation:
+      type: object
+      properties:
+        contact_name: { type: string }
+        address: { type: string }
+        latitude: { type: number }
+        longitude: { type: number }
+    TrackingHistoryEvent:
+      type: object
+      properties:
+        status: { type: string }
+        description: { type: string }
+        updated_at: { type: string, format: date-time }
+    TrackingDetailResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        waybill_id: { type: string }
+        status: { type: string }
+        link: { type: string, format: uri }
+        courier: { $ref: "#/components/schemas/TrackingDetailCourier" }
+        origin: { $ref: "#/components/schemas/TrackingDetailLocation" }
+        destination: { $ref: "#/components/schemas/TrackingDetailLocation" }
+        history:
+          type: array
+          items: { $ref: "#/components/schemas/TrackingHistoryEvent" }
+        estimated_delivery: { type: string, format: date-time, nullable: true }
+        delivered_at: { type: string, format: date-time, nullable: true }
+    CreateShipmentResult:
+      type: object
+      properties:
+        shipment_id: { type: string, format: uuid }
+        order_id: { type: string, format: uuid }
+        status: { type: string }
+        tracking_number: { type: string, nullable: true }
+        tracking_url: { type: string, format: uri, nullable: true }

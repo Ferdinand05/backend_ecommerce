@@ -57,18 +57,38 @@ func toProductResponse(product models.Product, provider storage.Provider) Produc
 			Slug: product.Category.Slug,
 		},
 		Images:    toProductImageResponses(product.Images, provider),
+		Variants:  toProductVariantResponses(product.Variants),
 		CreatedAt: product.CreatedAt,
 		UpdatedAt: product.UpdatedAt,
 	}
 }
 
-func toProductVariantResponse(variant models.ProductVariant) ProductVariantResponse {
-	response := ProductVariantResponse{
-		ID:       variant.ID,
-		SKU:      variant.SKU,
-		Name:     variant.Name,
-		Price:    variant.Price,
-		IsActive: variant.IsActive,
+func toProductVariantResponses(variants []models.ProductVariant) []ProductVariantResponse {
+	responses := make([]ProductVariantResponse, len(variants))
+	for i, v := range variants {
+		responses[i] = ProductVariantResponse{
+			ID:       v.ID,
+			SKU:      v.SKU,
+			Name:     v.Name,
+			Price:    v.Price,
+			IsActive: v.IsActive,
+		}
+	}
+
+	return responses
+}
+
+func toProductVariantDetailResponse(variant models.ProductVariant, provider storage.Provider) ProductVariantDetailResponse {
+	response := ProductVariantDetailResponse{
+		ProductVariantResponse: ProductVariantResponse{
+			ID:       variant.ID,
+			SKU:      variant.SKU,
+			Name:     variant.Name,
+			Price:    variant.Price,
+			IsActive: variant.IsActive,
+		},
+		WeightGrams: variant.WeightGrams,
+		Images:      toProductImageResponses(variant.Images, provider),
 	}
 
 	// Zero value (tanpa Preload) = null, bukan stok nol palsu.
@@ -83,14 +103,24 @@ func toProductVariantResponse(variant models.ProductVariant) ProductVariantRespo
 }
 
 func toProductDetailResponse(product models.Product, provider storage.Provider) ProductDetailResponse {
-	variants := make([]ProductVariantResponse, len(product.Variants))
+	variants := make([]ProductVariantDetailResponse, len(product.Variants))
 	for i, v := range product.Variants {
-		variants[i] = toProductVariantResponse(v)
+		variants[i] = toProductVariantDetailResponse(v, provider)
 	}
 
+	response := toProductResponse(product, provider)
 	return ProductDetailResponse{
-		ProductResponse: toProductResponse(product, provider),
-		Variants:        variants,
+		ID:          response.ID,
+		CategoryID:  response.CategoryID,
+		Name:        response.Name,
+		Slug:        response.Slug,
+		Description: response.Description,
+		IsActive:    response.IsActive,
+		Category:    response.Category,
+		Images:      response.Images,
+		Variants:    variants,
+		CreatedAt:   response.CreatedAt,
+		UpdatedAt:   response.UpdatedAt,
 	}
 }
 

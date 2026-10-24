@@ -21,7 +21,8 @@ type ProductVariant struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
-	Product Product `gorm:"foreignKey:ProductID"`
+	Product Product        `gorm:"foreignKey:ProductID"`
+	Images  []ProductImage `gorm:"foreignKey:ProductVariantID;references:ID"`
 
 	// Pointer: satu variant punya paling banyak satu item inventory,
 	// dan belum tentu punya (menghindari tipe rekursif dengan InventoryItem).
