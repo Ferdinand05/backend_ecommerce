@@ -1673,16 +1673,7 @@ components:
         name: { type: string }
         price: { type: number }
         is_active: { type: boolean }
-    ProductVariantDetail:
-      allOf:
-        - { $ref: "#/components/schemas/ProductVariantSummary" }
-        - type: object
-          properties:
-            weight_grams: { type: integer }
-            inventory: { $ref: "#/components/schemas/ProductStock" }
-            images:
-              type: array
-              items: { $ref: "#/components/schemas/ProductImageSummary" }
+        inventory: { $ref: "#/components/schemas/ProductStock" }
     ProductResponse:
       type: object
       properties:
@@ -1696,9 +1687,6 @@ components:
         images:
           type: array
           items: { $ref: "#/components/schemas/ProductImageSummary" }
-        variants:
-          type: array
-          items: { $ref: "#/components/schemas/ProductVariantSummary" }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
     ProductDetail:
@@ -1708,7 +1696,7 @@ components:
           properties:
             variants:
               type: array
-              items: { $ref: "#/components/schemas/ProductVariantDetail" }
+              items: { $ref: "#/components/schemas/ProductVariantSummary" }
     ProductEnvelope:
       type: object
       properties:
