@@ -72,6 +72,10 @@ func (r *repository) FindAllByProductID(ctx context.Context, productID uuid.UUID
 	var variants []models.ProductVariant
 
 	err := db.
+		Preload("Inventory").
+		Preload("Images", func(db *gorm.DB) *gorm.DB {
+			return db.Order("sort_order ASC").Order("created_at ASC")
+		}).
 		Where("product_id = ?", productID).
 		Order("created_at ASC").
 		Find(&variants).
@@ -90,7 +94,12 @@ func (r *repository) FindByID(ctx context.Context, id uuid.UUID) (models.Product
 
 	var variant models.ProductVariant
 
-	err := db.First(&variant, id).Error
+	err := db.
+		Preload("Inventory").
+		Preload("Images", func(db *gorm.DB) *gorm.DB {
+			return db.Order("sort_order ASC").Order("created_at ASC")
+		}).
+		First(&variant, id).Error
 	if err != nil {
 
 		if errors.Is(err, gorm.ErrRecordNotFound) {

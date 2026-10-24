@@ -5,6 +5,7 @@ import (
 	"errors"
 	"ferdinand/ecommerce/internal/models"
 	"ferdinand/ecommerce/internal/product"
+	"ferdinand/ecommerce/internal/storage"
 	"net/http"
 	"time"
 
@@ -14,16 +15,25 @@ import (
 
 type Handler struct {
 	service Service
+	storage storage.Provider
 }
 
-func NewHandler(service Service) *Handler {
-	return &Handler{
-		service: service,
+func NewHandler(service Service, storageProvider storage.Provider) *Handler {
+	return &Handler{service: service, storage: storageProvider}
+}
+
+func toProductVariantResponse(variant models.ProductVariant, storageProvider storage.Provider) ProductVariantResponse {
+	images := make([]ProductVariantImageResponse, len(variant.Images))
+	for i, image := range variant.Images {
+		images[i] = ProductVariantImageResponse{
+			ID:        image.ID,
+			URL:       storageProvider.URL(image.StorageKey),
+			Alt:       image.Alt,
+			SortOrder: image.SortOrder,
+		}
 	}
-}
 
-func toProductVariantResponse(variant models.ProductVariant) ProductVariantResponse {
-	return ProductVariantResponse{
+	response := ProductVariantResponse{
 		ID:          variant.ID,
 		ProductID:   variant.ProductID,
 		SKU:         variant.SKU,
@@ -31,13 +41,22 @@ func toProductVariantResponse(variant models.ProductVariant) ProductVariantRespo
 		Price:       variant.Price,
 		IsActive:    variant.IsActive,
 		WeightGrams: variant.WeightGrams,
+		Images:      images,
 	}
+	if variant.Inventory != nil {
+		response.Inventory = &InventoryResponse{
+			Quantity:         variant.Inventory.Quantity,
+			ReservedQuantity: variant.Inventory.ReservedQuantity,
+		}
+	}
+
+	return response
 }
 
-func toProductVariantResponses(variants []models.ProductVariant) []ProductVariantResponse {
+func toProductVariantResponses(variants []models.ProductVariant, storageProvider storage.Provider) []ProductVariantResponse {
 	responses := make([]ProductVariantResponse, len(variants))
 	for i, v := range variants {
-		responses[i] = toProductVariantResponse(v)
+		responses[i] = toProductVariantResponse(v, storageProvider)
 	}
 
 	return responses
@@ -74,7 +93,7 @@ func (h *Handler) FindAllByProductID(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"variants": toProductVariantResponses(variants),
+		"variants": toProductVariantResponses(variants, h.storage),
 	})
 }
 
@@ -113,7 +132,7 @@ func (h *Handler) FindByID(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"variant": toProductVariantResponse(variant),
+		"variant": toProductVariantResponse(variant, h.storage),
 	})
 }
 
@@ -166,7 +185,7 @@ func (h *Handler) Create(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"variant": toProductVariantResponse(variant),
+		"variant": toProductVariantResponse(variant, h.storage),
 	})
 }
 
@@ -227,7 +246,7 @@ func (h *Handler) Update(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"variant": toProductVariantResponse(variant),
+		"variant": toProductVariantResponse(variant, h.storage),
 	})
 }
 
