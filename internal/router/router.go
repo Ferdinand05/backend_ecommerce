@@ -17,7 +17,9 @@ import (
 	"ferdinand/ecommerce/internal/shipping"
 	"ferdinand/ecommerce/internal/user"
 	userJWT "ferdinand/ecommerce/utils/jwt"
+	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -42,6 +44,17 @@ func New(handlers RouteHandlers, jwtService *userJWT.JWTService) *gin.Engine {
 
 	r := gin.New()
 	r.Use(gin.Recovery(), middleware.RequestLogger())
+
+	// Konfigurasi CORS
+    r.Use(cors.New(cors.Config{
+        // HANYA daftarkan origin secara eksplisit (hapus wildcard "*")
+        AllowOrigins:     []string{"http://localhost:5173"},
+        AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+        AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+        AllowCredentials: true,
+        MaxAge:           12 * time.Hour,
+    }))
+
 	v1 := r.Group("/api/v1")
 
 	// ============================================================
