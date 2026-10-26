@@ -244,7 +244,8 @@ paths:
       summary: List active products
       description: |
         Returns only active products. Supports keyword search, category filter,
-        sorting, and pagination.
+        sorting, and pagination. Each product includes its active variants
+        (summary: id, sku, name, price, is_active).
       parameters:
         - name: q
           in: query
@@ -290,8 +291,9 @@ paths:
       tags: [Public - Products]
       summary: Get product by ID
       description: |
-        Returns an active product with its active variants. Inactive products
-        and variants respond with 404.
+        Returns an active product with its active variants, each variant
+        including weight, stock (quantity and reserved quantity), and images.
+        Inactive products respond with 404.
       responses:
         "200":
           description: Product detail
@@ -305,6 +307,9 @@ paths:
     get:
       tags: [Public - Products]
       summary: Get product by slug
+      description: |
+        Same payload as `GET /products/{product_id}`: an active product with
+        its active variants including weight, stock, and images.
       parameters:
         - name: slug
           in: path
@@ -1069,7 +1074,9 @@ paths:
       summary: List all products
       description: |
         Lists all products, including inactive ones. Optionally filter by
-        `is_active` and paginate.
+        `is_active` and paginate. Each product includes all of its variants
+        (summary: id, sku, name, price, is_active), so inactive variants are
+        visible here.
       security: [{ BearerAuth: [] }]
       parameters:
         - name: q
@@ -1179,7 +1186,9 @@ paths:
     get:
       tags: [Admin - Product Variants]
       summary: List all product variants
-      description: Lists every variant of the product, including inactive ones.
+      description: |
+        Lists every variant of the product, including inactive ones. Each
+        variant includes weight, stock, and images.
       security: [{ BearerAuth: [] }]
       responses:
         "200":
@@ -1921,14 +1930,28 @@ components:
         reserved_quantity: { type: integer }
     ProductVariantSummary:
       type: object
+      description: Ringkasan varian pada response list produk.
       properties:
         id: { type: string, format: uuid }
         sku: { type: string }
         name: { type: string }
         price: { type: number }
         is_active: { type: boolean }
+    ProductVariantDetail:
+      type: object
+      description: Varian lengkap dengan bobot, stok, dan gambar.
+      properties:
+        id: { type: string, format: uuid }
+        sku: { type: string }
+        name: { type: string }
+        price: { type: number }
+        is_active: { type: boolean }
+        weight_grams: { type: integer }
         inventory: { $ref: "#/components/schemas/ProductStock" }
-    ProductResponse:
+        images:
+          type: array
+          items: { $ref: "#/components/schemas/ProductImageSummary" }
+    ProductBase:
       type: object
       properties:
         id: { type: string, format: uuid }
@@ -1943,14 +1966,22 @@ components:
           items: { $ref: "#/components/schemas/ProductImageSummary" }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
-    ProductDetail:
+    ProductResponse:
       allOf:
-        - { $ref: "#/components/schemas/ProductResponse" }
+        - { $ref: "#/components/schemas/ProductBase" }
         - type: object
           properties:
             variants:
               type: array
               items: { $ref: "#/components/schemas/ProductVariantSummary" }
+    ProductDetail:
+      allOf:
+        - { $ref: "#/components/schemas/ProductBase" }
+        - type: object
+          properties:
+            variants:
+              type: array
+              items: { $ref: "#/components/schemas/ProductVariantDetail" }
     ProductEnvelope:
       type: object
       properties:
