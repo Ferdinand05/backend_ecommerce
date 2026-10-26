@@ -57,6 +57,14 @@ type Service interface {
 		status OrderStatus,
 		note *string,
 	) (models.Order, error)
+
+	// CancelOrder membatalkan order milik user sendiri selama masih PENDING.
+	// Order milik user lain dikembalikan sebagai ErrorOrderNotFound.
+	CancelOrder(
+		ctx context.Context,
+		userID uuid.UUID,
+		orderID uuid.UUID,
+	) (models.Order, error)
 }
 
 type service struct {

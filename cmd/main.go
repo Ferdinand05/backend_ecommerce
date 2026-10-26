@@ -11,6 +11,7 @@ import (
 	"ferdinand/ecommerce/internal/checkout"
 	"ferdinand/ecommerce/internal/inventory"
 	"ferdinand/ecommerce/internal/mail"
+	"ferdinand/ecommerce/internal/metrics"
 	"ferdinand/ecommerce/internal/order"
 	"ferdinand/ecommerce/internal/payment"
 	paymentxendit "ferdinand/ecommerce/internal/payment/xendit"
@@ -185,6 +186,8 @@ func main() {
 	paymentService := payment.NewService(db, orderRepo, paymentRepo, inventoryItemRepo, stockMovementRepo, xenditClient, shipmentService)
 	paymentHandler := payment.NewHandler(paymentService, cfg.Xendit.WebhookToken)
 
+	metricsHandler := metrics.NewHandler(metrics.NewService(metrics.NewRepository(db)))
+
 	handlers := router.RouteHandlers{
 		UserHandler:           userHandler,
 		AuthHandler:           authHandler,
@@ -200,6 +203,7 @@ func main() {
 		CheckoutHandler:       checkoutHandler,
 		PaymentHandler:        paymentHandler,
 		ShipmentHandler:       shipmentHandler,
+		MetricsHandler:       metricsHandler,
 	}
 
 	r := router.New(handlers, jwtSvc)

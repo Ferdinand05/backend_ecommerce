@@ -46,3 +46,10 @@ type ResetPasswordRequest struct {
 	Token       string `json:"token" binding:"required"`
 	NewPassword string `json:"new_password" binding:"required,min=8"`
 }
+
+// UpdateProfileRequest dipakai untuk update profil user yang sedang login.
+type UpdateProfileRequest struct {
+	FirstName string  `json:"first_name" binding:"required,max=150"`
+	LastName  *string `json:"last_name"`
+	Phone     *string `json:"phone"`
+}

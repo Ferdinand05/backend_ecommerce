@@ -21,3 +21,11 @@ func RegisterRoutes(rg *gin.RouterGroup, h *Handler) {
 		auth.POST("/password/reset", h.ResetPassword)
 	}
 }
+
+// RegisterProfileRoutes memasang endpoint profil pada group yang
+// diberikan. Group harus sudah berawalan /auth dan dipanggil dengan
+// middleware autentikasi.
+func RegisterProfileRoutes(rg *gin.RouterGroup, h *Handler) {
+	rg.GET("", h.GetMe)
+	rg.PUT("", h.UpdateMe)
+}

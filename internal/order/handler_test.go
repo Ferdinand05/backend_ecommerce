@@ -47,6 +47,9 @@ type fakeService struct {
 	createOrderErr  error
 	createOrderReq  CreateOrderRequest
 	createOrderUser uuid.UUID
+
+	cancelOrderRes models.Order
+	cancelOrderErr error
 }
 
 func (f *fakeService) CreateOrder(ctx context.Context, userID uuid.UUID, req CreateOrderRequest) (models.Order, error) {
@@ -80,6 +83,10 @@ func (f *fakeService) FindAll(ctx context.Context, filter OrderFilter) (OrderLis
 
 func (f *fakeService) UpdateStatus(ctx context.Context, orderID uuid.UUID, status OrderStatus, note *string) (models.Order, error) {
 	return f.updateStatusRes, f.updateStatusErr
+}
+
+func (f *fakeService) CancelOrder(ctx context.Context, userID uuid.UUID, orderID uuid.UUID) (models.Order, error) {
+	return f.cancelOrderRes, f.cancelOrderErr
 }
 
 type ordersEnvelope struct {
@@ -375,6 +382,40 @@ func TestUpdateStatusErrors(t *testing.T) {
 				t.Fatalf("status = %d, want %d", w.Code, tt.wantStatus)
 			}
 		})
+	}
+}
+
+func TestHandlerCancelOrderErrors(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        error
+		wantStatus int
+	}{
+		{name: "not cancellable", err: ErrorOrderNotCancellable, wantStatus: http.StatusConflict},
+		{name: "not found", err: ErrorOrderNotFound, wantStatus: http.StatusNotFound},
+		{name: "unknown", err: errors.New("boom"), wantStatus: http.StatusInternalServerError},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &fakeService{cancelOrderErr: tt.err}
+
+			w := orderRequest(t, newOrderRouter(svc), http.MethodPost,
+				"/api/v1/me/orders/"+uuid.New().String()+"/cancel", "", uuid.New(), "customer")
+
+			if w.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d", w.Code, tt.wantStatus)
+			}
+		})
+	}
+}
+
+func TestHandlerCancelOrderInvalidID(t *testing.T) {
+	w := orderRequest(t, newOrderRouter(&fakeService{}), http.MethodPost,
+		"/api/v1/me/orders/not-a-uuid/cancel", "", uuid.New(), "customer")
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
 	}
 }
 

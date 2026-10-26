@@ -84,7 +84,32 @@ func (h *Handler) FindAllByProductID(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	variants, err := h.service.FindAllByProductID(ctx, productID)
+	variants, err := h.service.FindAllByProductID(ctx, productID, true)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "internal server error",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"variants": toProductVariantResponses(variants, h.storage),
+	})
+}
+
+// FindAllByProductIDAdmin handler list varian produk untuk admin: semua
+// varian, termasuk yang non-aktif.
+func (h *Handler) FindAllByProductIDAdmin(c *gin.Context) {
+
+	productID, ok := parseProductID(c)
+	if !ok {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	variants, err := h.service.FindAllByProductID(ctx, productID, false)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "internal server error",
@@ -127,6 +152,14 @@ func (h *Handler) FindByID(c *gin.Context) {
 
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "internal server error",
+		})
+		return
+	}
+
+	// Varian non-aktif tidak boleh bocor lewat endpoint publik.
+	if !variant.IsActive {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "product variant not found",
 		})
 		return
 	}

@@ -1,10 +1,13 @@
 package user
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"ferdinand/ecommerce/internal/models"
 	"ferdinand/ecommerce/utils/crypto"
+	"io"
 	"net/http"
 	"time"
 
@@ -97,6 +100,119 @@ func (h *Handler) Create(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, ToUserResponse(created))
+}
+
+// UpdateProfile mengubah field profil user (first_name, last_name, phone).
+func (h *Handler) UpdateProfile(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	var req UpdateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	updated, err := h.svc.UpdateProfile(ctx, id, req)
+	if err != nil {
+		if errors.Is(err, ErrorUserNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user profile"})
+		return
+	}
+
+	c.JSON(http.StatusOK, ToUserResponse(updated))
+}
+
+func (h *Handler) UpdateStatus(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	// Binding DTO menolak status di luar 'active'/'blocked'. Cek dulu
+	// dari body mentah supaya error "invalid status" dibedakan dari
+	// body lain yang tidak valid.
+	raw, err := io.ReadAll(c.Request.Body)
+	if err == nil {
+		c.Request.Body = io.NopCloser(bytes.NewReader(raw))
+
+		var probe UpdateUserStatusRequest
+		if json.Unmarshal(raw, &probe) == nil &&
+			probe.Status != "" &&
+			probe.Status != "active" &&
+			probe.Status != "blocked" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid status"})
+			return
+		}
+	}
+
+	var req UpdateUserStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	updated, err := h.svc.UpdateStatus(ctx, id, req.Status)
+	if err != nil {
+		if errors.Is(err, ErrorUserNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+			return
+		}
+		if errors.Is(err, ErrorInvalidUserStatus) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid status"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user status"})
+		return
+	}
+
+	c.JSON(http.StatusOK, ToUserResponse(updated))
+}
+
+func (h *Handler) UpdateRole(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	var req UpdateUserRoleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	updated, err := h.svc.UpdateRole(ctx, id, req.RoleID)
+	if err != nil {
+		if errors.Is(err, ErrorUserNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+			return
+		}
+		if errors.Is(err, ErrorRoleNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "role not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user role"})
+		return
+	}
+
+	c.JSON(http.StatusOK, ToUserResponse(updated))
 }
 
 func ToUserResponse(u models.User) UserResponse {

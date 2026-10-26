@@ -34,3 +34,20 @@ type CreateUserRequest struct {
 	Phone     *string   `json:"phone"`
 	RoleID    uuid.UUID `json:"role_id" binding:"required"`
 }
+
+// UpdateProfileRequest dipakai untuk update profil user sendiri.
+type UpdateProfileRequest struct {
+	FirstName string  `json:"first_name" binding:"required,max=150"`
+	LastName  *string `json:"last_name"`
+	Phone     *string `json:"phone"`
+}
+
+// UpdateUserStatusRequest dipakai admin untuk mengubah status user.
+type UpdateUserStatusRequest struct {
+	Status string `json:"status" binding:"required,oneof=active blocked"`
+}
+
+// UpdateUserRoleRequest dipakai admin untuk mengubah role user.
+type UpdateUserRoleRequest struct {
+	RoleID uuid.UUID `json:"role_id" binding:"required,uuid"`
+}

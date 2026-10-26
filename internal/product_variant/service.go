@@ -21,6 +21,7 @@ type Service interface {
 	FindAllByProductID(
 		ctx context.Context,
 		productID uuid.UUID,
+		onlyActive bool,
 	) ([]models.ProductVariant, error)
 
 	FindByID(
@@ -116,14 +117,26 @@ func (s *service) Create(ctx context.Context, productID uuid.UUID, req CreatePro
 	return variant, nil
 }
 
-func (s *service) FindAllByProductID(ctx context.Context, productID uuid.UUID) ([]models.ProductVariant, error) {
+func (s *service) FindAllByProductID(ctx context.Context, productID uuid.UUID, onlyActive bool) ([]models.ProductVariant, error) {
 
 	variants, err := s.repo.FindAllByProductID(ctx, productID)
 	if err != nil {
 		return nil, err
 	}
 
-	return variants, nil
+	if !onlyActive {
+		return variants, nil
+	}
+
+	active := make([]models.ProductVariant, 0, len(variants))
+
+	for _, v := range variants {
+		if v.IsActive {
+			active = append(active, v)
+		}
+	}
+
+	return active, nil
 }
 
 func (s *service) FindByID(ctx context.Context, productID uuid.UUID, id uuid.UUID) (models.ProductVariant, error) {

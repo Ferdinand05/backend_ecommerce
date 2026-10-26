@@ -15,6 +15,7 @@ func RegisterPublicRoutes(rg *gin.RouterGroup, handler *Handler) {
 func RegisterAdminRoutes(admin *gin.RouterGroup, handler *Handler) {
 	variants := admin.Group("/products/:product_id/variants")
 	{
+		variants.GET("", handler.FindAllByProductIDAdmin)
 		variants.POST("", handler.Create)
 		variants.PUT("/:variant_id", handler.Update)
 		variants.DELETE("/:variant_id", handler.Delete)

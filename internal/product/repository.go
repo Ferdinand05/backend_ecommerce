@@ -63,6 +63,7 @@ func (r *repository) FindAll(ctx context.Context) ([]models.Product, error) {
 		Preload("Category").
 		Preload("Images").
 		Preload("Variants").
+		Order("created_at DESC").
 		Find(&products).Error
 	if err != nil {
 		return nil, fmt.Errorf("finding products:%w", err)

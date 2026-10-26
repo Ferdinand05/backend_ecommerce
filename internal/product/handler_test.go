@@ -50,8 +50,22 @@ func (fakeStorage) URL(key string) string {
 	return "https://cdn.example.com/" + key
 }
 
-func (f *fakeService) FindAll(ctx context.Context) ([]models.Product, error) {
-	return f.findAllRes, f.findAllErr
+func (f *fakeService) FindAll(ctx context.Context, filter ProductFilter) (ProductListResult, error) {
+	return ProductListResult{
+		Products: f.findAllRes,
+		Total:    int64(len(f.findAllRes)),
+		Page:     filter.Page,
+		PageSize: filter.PageSize,
+	}, f.findAllErr
+}
+
+func (f *fakeService) FindPublicList(ctx context.Context, filter ProductFilter) (ProductListResult, error) {
+	return ProductListResult{
+		Products: f.findAllRes,
+		Total:    int64(len(f.findAllRes)),
+		Page:     filter.Page,
+		PageSize: filter.PageSize,
+	}, f.findAllErr
 }
 
 func (f *fakeService) FindByID(ctx context.Context, ID uuid.UUID) (models.Product, error) {
@@ -166,7 +180,7 @@ func TestHandlerFindByID(t *testing.T) {
 		Slug:     "laptop",
 		Category: models.Category{Name: "electronics", Slug: "electronics"},
 		Variants: []models.ProductVariant{
-			{ID: uuid.New(), SKU: "LAP-001", Name: "16GB", Price: decimal.NewFromInt(15000000), WeightGrams: 1200,
+			{ID: uuid.New(), SKU: "LAP-001", Name: "16GB", Price: decimal.NewFromInt(15000000), WeightGrams: 1200, IsActive: true,
 				Inventory: &models.InventoryItem{Quantity: 8, ReservedQuantity: 2},
 				Images:    []models.ProductImage{{ID: uuid.New(), StorageKey: "variants/lap.jpg", SortOrder: 1}}},
 		},
@@ -227,7 +241,7 @@ func TestHandlerFindBySlug(t *testing.T) {
 		Slug:     "laptop",
 		Category: models.Category{Name: "electronics", Slug: "electronics"},
 		Variants: []models.ProductVariant{
-			{ID: uuid.New(), SKU: "LAP-001", Name: "16GB", Price: decimal.NewFromInt(15000000), WeightGrams: 1200,
+			{ID: uuid.New(), SKU: "LAP-001", Name: "16GB", Price: decimal.NewFromInt(15000000), WeightGrams: 1200, IsActive: true,
 				Inventory: &models.InventoryItem{Quantity: 8, ReservedQuantity: 2},
 				Images:    []models.ProductImage{{ID: uuid.New(), StorageKey: "variants/lap.jpg", SortOrder: 1}}},
 		},

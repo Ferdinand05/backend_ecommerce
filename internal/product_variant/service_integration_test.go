@@ -143,7 +143,7 @@ func TestVariantServiceFindAllByProductID(t *testing.T) {
 		}
 	}
 
-	variants, err := svc.FindAllByProductID(context.Background(), prod.ID)
+	variants, err := svc.FindAllByProductID(context.Background(), prod.ID, false)
 	if err != nil {
 		t.Fatalf("FindAllByProductID() error = %v", err)
 	}

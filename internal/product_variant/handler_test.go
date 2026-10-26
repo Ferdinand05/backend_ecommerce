@@ -36,7 +36,7 @@ func (f *fakeService) Create(ctx context.Context, productID uuid.UUID, req Creat
 	return f.createRes, f.createErr
 }
 
-func (f *fakeService) FindAllByProductID(ctx context.Context, productID uuid.UUID) ([]models.ProductVariant, error) {
+func (f *fakeService) FindAllByProductID(ctx context.Context, productID uuid.UUID, onlyActive bool) ([]models.ProductVariant, error) {
 	return f.findAllRes, f.findAllErr
 }
 
@@ -160,7 +160,7 @@ func TestHandlerFindByID(t *testing.T) {
 	productID := uuid.New()
 	id := uuid.New()
 	svc := &fakeService{findByIDRes: models.ProductVariant{
-		ID: id, ProductID: productID, SKU: "LAP-001",
+		ID: id, ProductID: productID, SKU: "LAP-001", IsActive: true,
 		Inventory: &models.InventoryItem{Quantity: 8, ReservedQuantity: 2},
 		Images:    []models.ProductImage{{ID: uuid.New(), StorageKey: "variants/lap.jpg", SortOrder: 1}},
 	}}

@@ -12,6 +12,7 @@ func RegisterRoutes(me *gin.RouterGroup, admin *gin.RouterGroup, handler *Handle
 	me.POST("/orders", handler.CreateOrder)
 	me.GET("/orders", handler.ListMyOrders)
 	me.GET("/orders/:order_id", handler.GetMyOrder)
+	me.POST("/orders/:order_id/cancel", handler.CancelOrder)
 
 	admin.GET("/orders", handler.ListOrders)
 	admin.GET("/orders/:order_id", handler.GetOrder)

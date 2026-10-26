@@ -12,5 +12,8 @@ func RegisterRoutes(rg *gin.RouterGroup, h *Handler) {
 		users.GET("", h.FindAll)
 		users.GET("/:id", h.FindByID)
 		users.POST("", h.Create)
+		users.PATCH("/:id/status", h.UpdateStatus)
+		users.PATCH("/:id/role", h.UpdateRole)
+		users.PATCH("/:id/profile", h.UpdateProfile)
 	}
 }

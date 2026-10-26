@@ -35,7 +35,8 @@ type fakeRepo struct {
 	deleteCalled bool
 	deleteID     uuid.UUID
 
-	findAllCalls int
+	findAllCalls       int
+	findAllFilter     ProductFilter
 }
 
 func (f *fakeRepo) FindAll(ctx context.Context) ([]models.Product, error) {
@@ -132,7 +133,7 @@ func TestServiceFindAll(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := NewService(tt.repo, &fakeCategoryRepo{}, &fakeCache{data: map[string][]byte{}}, nil)
 
-			got, err := svc.FindAll(context.Background())
+			got, err := svc.FindAll(context.Background(), ProductFilter{})
 			if tt.wantErr != nil {
 				if !errors.Is(err, tt.wantErr) {
 					t.Fatalf("FindAll() error = %v, want %v", err, tt.wantErr)
@@ -140,8 +141,8 @@ func TestServiceFindAll(t *testing.T) {
 				return
 			}
 
-			if len(got) != tt.wantLen {
-				t.Fatalf("FindAll() len = %d, want %d", len(got), tt.wantLen)
+			if len(got.Products) != tt.wantLen {
+				t.Fatalf("FindAll() len = %d, want %d", len(got.Products), tt.wantLen)
 			}
 		})
 	}
@@ -158,7 +159,7 @@ func TestServiceFindByID(t *testing.T) {
 	}{
 		{
 			name: "success",
-			repo: &fakeRepo{findByIDRes: models.Product{ID: id, Name: "laptop", Slug: "laptop"}},
+			repo: &fakeRepo{findByIDRes: models.Product{ID: id, Name: "laptop", Slug: "laptop", IsActive: true}},
 			want: "laptop",
 		},
 		{
@@ -196,7 +197,7 @@ func TestServiceFindBySlug(t *testing.T) {
 	}{
 		{
 			name: "success",
-			repo: &fakeRepo{findBySlugRes: models.Product{Name: "laptop", Slug: "laptop"}},
+			repo: &fakeRepo{findBySlugRes: models.Product{Name: "laptop", Slug: "laptop", IsActive: true}},
 			want: "laptop",
 		},
 		{
