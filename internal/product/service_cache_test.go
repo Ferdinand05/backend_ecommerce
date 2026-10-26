@@ -74,23 +74,23 @@ func sampleProducts() []models.Product {
 	mouseDescription := "clicky"
 
 	return []models.Product{
-		{ID: uuid.New(), Name: "laptop", Slug: "laptop", Description: &description},
-		{ID: uuid.New(), Name: "mouse", Slug: "mouse", Description: &mouseDescription},
+		{ID: uuid.New(), Name: "laptop", Slug: "laptop", Description: &description, IsActive: true},
+		{ID: uuid.New(), Name: "mouse", Slug: "mouse", Description: &mouseDescription, IsActive: true},
 	}
 }
 
-func TestFindAllCachesOnMiss(t *testing.T) {
+func TestFindPublicListCachesOnMiss(t *testing.T) {
 	repo := &fakeRepo{findAllRes: sampleProducts()}
 	cache := &fakeCache{data: map[string][]byte{}}
 	svc := newTestService(repo, cache)
 
-	got, err := svc.FindAll(context.Background())
+	got, err := svc.FindPublicList(context.Background(), ProductFilter{})
 	if err != nil {
-		t.Fatalf("FindAll() error = %v", err)
+		t.Fatalf("FindPublicList() error = %v", err)
 	}
 
-	if len(got) != 2 {
-		t.Fatalf("FindAll() len = %d, want 2", len(got))
+	if len(got.Products) != 2 {
+		t.Fatalf("FindPublicList() len = %d, want 2", len(got.Products))
 	}
 
 	if cache.getCalls != 1 || cache.setCalls != 1 {
@@ -102,39 +102,39 @@ func TestFindAllCachesOnMiss(t *testing.T) {
 	}
 }
 
-func TestFindAllCacheHitSkipsRepo(t *testing.T) {
+func TestFindPublicListCacheHitSkipsRepo(t *testing.T) {
 	repo := &fakeRepo{findAllRes: sampleProducts()}
 	cache := &fakeCache{data: map[string][]byte{}}
 	svc := newTestService(repo, cache)
 
 	// isi cache lewat pemanggilan pertama.
-	if _, err := svc.FindAll(context.Background()); err != nil {
-		t.Fatalf("FindAll() first error = %v", err)
+	if _, err := svc.FindPublicList(context.Background(), ProductFilter{}); err != nil {
+		t.Fatalf("FindPublicList() first error = %v", err)
 	}
 
 	repo.findAllRes = nil // pastikan data hanya bisa datang dari cache.
 
-	got, err := svc.FindAll(context.Background())
+	got, err := svc.FindPublicList(context.Background(), ProductFilter{})
 	if err != nil {
-		t.Fatalf("FindAll() second error = %v", err)
+		t.Fatalf("FindPublicList() second error = %v", err)
 	}
 
 	if repo.findAllCalls != 1 {
 		t.Fatalf("repo calls = %d, want 1 (cache hit tidak boleh ke repo)", repo.findAllCalls)
 	}
 
-	if len(got) != 2 || got[0].Name != "laptop" {
-		t.Fatalf("FindAll() = %v, want cached products", got)
+	if len(got.Products) != 2 || got.Products[0].Name != "laptop" {
+		t.Fatalf("FindPublicList() = %v, want cached products", got.Products)
 	}
 }
 
-func TestFindAllRepoErrorDoesNotCache(t *testing.T) {
+func TestFindPublicListRepoErrorDoesNotCache(t *testing.T) {
 	repo := &fakeRepo{findAllErr: errors.New("db down")}
 	cache := &fakeCache{data: map[string][]byte{}}
 	svc := newTestService(repo, cache)
 
-	if _, err := svc.FindAll(context.Background()); !errors.Is(err, repo.findAllErr) {
-		t.Fatalf("FindAll() error = %v, want db down", err)
+	if _, err := svc.FindPublicList(context.Background(), ProductFilter{}); !errors.Is(err, repo.findAllErr) {
+		t.Fatalf("FindPublicList() error = %v, want db down", err)
 	}
 
 	if cache.setCalls != 0 {
@@ -142,52 +142,52 @@ func TestFindAllRepoErrorDoesNotCache(t *testing.T) {
 	}
 }
 
-func TestFindAllRedisErrorFallsBackToRepo(t *testing.T) {
+func TestFindPublicListRedisErrorFallsBackToRepo(t *testing.T) {
 	repo := &fakeRepo{findAllRes: sampleProducts()}
 	cache := &fakeCache{data: map[string][]byte{}, getErr: errors.New("redis down")}
 	svc := newTestService(repo, cache)
 
-	got, err := svc.FindAll(context.Background())
+	got, err := svc.FindPublicList(context.Background(), ProductFilter{})
 	if err != nil {
-		t.Fatalf("FindAll() error = %v, want fallback success", err)
+		t.Fatalf("FindPublicList() error = %v, want fallback success", err)
 	}
 
-	if len(got) != 2 {
-		t.Fatalf("FindAll() len = %d, want 2", len(got))
+	if len(got.Products) != 2 {
+		t.Fatalf("FindPublicList() len = %d, want 2", len(got.Products))
 	}
 }
 
-func TestFindAllCorruptCacheFallsBackToRepo(t *testing.T) {
+func TestFindPublicListCorruptCacheFallsBackToRepo(t *testing.T) {
 	repo := &fakeRepo{findAllRes: sampleProducts()}
 	cache := &fakeCache{data: map[string][]byte{productListCacheKey: []byte("{not-json")}}
 	svc := newTestService(repo, cache)
 
-	got, err := svc.FindAll(context.Background())
+	got, err := svc.FindPublicList(context.Background(), ProductFilter{})
 	if err != nil {
-		t.Fatalf("FindAll() error = %v", err)
+		t.Fatalf("FindPublicList() error = %v", err)
 	}
 
 	if cache.deleteCalls != 1 {
 		t.Fatalf("delete calls = %d, want 1 (cache rusak dihapus)", cache.deleteCalls)
 	}
 
-	if len(got) != 2 {
-		t.Fatalf("FindAll() len = %d, want 2 dari repo", len(got))
+	if len(got.Products) != 2 {
+		t.Fatalf("FindPublicList() len = %d, want 2 dari repo", len(got.Products))
 	}
 }
 
-func TestFindAllSetFailureStillSucceeds(t *testing.T) {
+func TestFindPublicListSetFailureStillSucceeds(t *testing.T) {
 	repo := &fakeRepo{findAllRes: sampleProducts()}
 	cache := &fakeCache{data: map[string][]byte{}, setErr: errors.New("redis read-only")}
 	svc := newTestService(repo, cache)
 
-	got, err := svc.FindAll(context.Background())
+	got, err := svc.FindPublicList(context.Background(), ProductFilter{})
 	if err != nil {
-		t.Fatalf("FindAll() error = %v, want success meski set gagal", err)
+		t.Fatalf("FindPublicList() error = %v, want success meski set gagal", err)
 	}
 
-	if len(got) != 2 {
-		t.Fatalf("FindAll() len = %d, want 2", len(got))
+	if len(got.Products) != 2 {
+		t.Fatalf("FindPublicList() len = %d, want 2", len(got.Products))
 	}
 }
 

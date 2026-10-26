@@ -15,6 +15,7 @@ import (
 )
 
 const customerRoleID = "00000000-0000-0000-0000-000000000001"
+const adminRoleID = "00000000-0000-0000-0000-000000000002"
 
 func setupTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
@@ -257,5 +258,145 @@ func TestRepositoryUpdatePasswordUserNotFound(t *testing.T) {
 	err := repo.UpdatePassword(context.Background(), uuid.New(), "new-hash")
 	if !errors.Is(err, ErrorUserNotFound) {
 		t.Fatalf("UpdatePassword() error = %v, want %v", err, ErrorUserNotFound)
+	}
+}
+
+func TestRepositoryUpdateProfile(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+
+	user := newTestUser()
+	if _, err := repo.Create(context.Background(), user); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	lastName := "Doe"
+	phone := "08123456789"
+
+	if err := repo.UpdateProfile(
+		context.Background(),
+		user.ID,
+		"Jane",
+		&lastName,
+		&phone,
+	); err != nil {
+		t.Fatalf("UpdateProfile() error = %v", err)
+	}
+
+	found, err := repo.FindByID(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("FindByID() error = %v", err)
+	}
+
+	if found.FirstName != "Jane" {
+		t.Fatalf("FirstName = %q, want %q", found.FirstName, "Jane")
+	}
+
+	if found.LastName == nil || *found.LastName != lastName {
+		t.Fatalf("LastName = %v, want %q", found.LastName, lastName)
+	}
+
+	if found.Phone == nil || *found.Phone != phone {
+		t.Fatalf("Phone = %v, want %q", found.Phone, phone)
+	}
+}
+
+func TestRepositoryUpdateProfileUserNotFound(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+
+	err := repo.UpdateProfile(context.Background(), uuid.New(), "Jane", nil, nil)
+	if !errors.Is(err, ErrorUserNotFound) {
+		t.Fatalf("UpdateProfile() error = %v, want %v", err, ErrorUserNotFound)
+	}
+}
+
+func TestRepositoryUpdateStatus(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+
+	user := newTestUser()
+	if _, err := repo.Create(context.Background(), user); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	if err := repo.UpdateStatus(context.Background(), user.ID, "blocked"); err != nil {
+		t.Fatalf("UpdateStatus() error = %v", err)
+	}
+
+	found, err := repo.FindByID(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("FindByID() error = %v", err)
+	}
+
+	if found.Status != "blocked" {
+		t.Fatalf("Status = %q, want %q", found.Status, "blocked")
+	}
+}
+
+func TestRepositoryUpdateStatusUserNotFound(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+
+	err := repo.UpdateStatus(context.Background(), uuid.New(), "blocked")
+	if !errors.Is(err, ErrorUserNotFound) {
+		t.Fatalf("UpdateStatus() error = %v, want %v", err, ErrorUserNotFound)
+	}
+}
+
+func TestRepositoryUpdateRole(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+
+	user := newTestUser()
+	if _, err := repo.Create(context.Background(), user); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	roleID := uuid.MustParse(adminRoleID)
+	if err := repo.UpdateRole(context.Background(), user.ID, roleID); err != nil {
+		t.Fatalf("UpdateRole() error = %v", err)
+	}
+
+	found, err := repo.FindByID(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("FindByID() error = %v", err)
+	}
+
+	if found.RoleID != roleID {
+		t.Fatalf("RoleID = %v, want %v", found.RoleID, roleID)
+	}
+}
+
+func TestRepositoryUpdateRoleUserNotFound(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+
+	err := repo.UpdateRole(context.Background(), uuid.New(), uuid.New())
+	if !errors.Is(err, ErrorUserNotFound) {
+		t.Fatalf("UpdateRole() error = %v, want %v", err, ErrorUserNotFound)
+	}
+}
+
+func TestRepositoryRoleExists(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+
+	exists, err := repo.RoleExists(context.Background(), uuid.MustParse(customerRoleID))
+	if err != nil {
+		t.Fatalf("RoleExists() error = %v", err)
+	}
+
+	if !exists {
+		t.Fatal("RoleExists() = false, want true for customer role")
+	}
+
+	exists, err = repo.RoleExists(context.Background(), uuid.New())
+	if err != nil {
+		t.Fatalf("RoleExists() error = %v", err)
+	}
+
+	if exists {
+		t.Fatal("RoleExists() = true, want false for unknown role")
 	}
 }

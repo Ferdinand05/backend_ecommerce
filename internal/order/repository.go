@@ -38,6 +38,8 @@ type Repository interface {
 	FindStatusHistories(ctx context.Context, orderID uuid.UUID) ([]models.OrderStatusHistory, error)
 
 	UpdateStatus(ctx context.Context, orderID uuid.UUID, status string) error
+
+	FindItemsByOrderID(ctx context.Context, orderID uuid.UUID) ([]models.OrderItem, error)
 }
 
 type repository struct {
@@ -260,4 +262,24 @@ func (r *repository) UpdateStatus(ctx context.Context, orderID uuid.UUID, status
 	}
 
 	return nil
+}
+
+// FindItemsByOrderID ambil item order tanpa preload, dipakai saat pembatalan
+// order untuk melepas reservasi stok per varian.
+func (r *repository) FindItemsByOrderID(
+	ctx context.Context,
+	orderID uuid.UUID,
+) ([]models.OrderItem, error) {
+
+	db := database.GetDB(ctx, r.db).WithContext(ctx)
+
+	var items []models.OrderItem
+
+	if err := db.
+		Where("order_id = ?", orderID).
+		Find(&items).Error; err != nil {
+		return nil, fmt.Errorf("finding order items:%w", err)
+	}
+
+	return items, nil
 }

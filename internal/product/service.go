@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
+	"strings"
 	"time"
 
 	redisClient "ferdinand/ecommerce/database/redis"
@@ -15,10 +17,13 @@ import (
 	"ferdinand/ecommerce/utils/slug"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 const (
-	productListCacheKey = "products:all:v2"
+	// Cache list produk (aktif & non-aktif). Filter, sorting, dan
+	// pagination dilakukan di memori service, jadi satu key cukup.
+	productListCacheKey = "products:all:v3"
 
 	// produk cukup sering berubah (stok, harga via variant, CRUD admin),
 	// TTL pendek agar stale tidak terasa.
@@ -33,7 +38,15 @@ type Service interface {
 
 	FindAll(
 		ctx context.Context,
-	) ([]models.Product, error)
+		filter ProductFilter,
+	) (ProductListResult, error)
+
+	// FindPublicList list produk untuk publik: hanya produk aktif,
+	// dengan pencarian, filter kategori, sorting, dan pagination.
+	FindPublicList(
+		ctx context.Context,
+		filter ProductFilter,
+	) (ProductListResult, error)
 
 	FindByID(
 		ctx context.Context,
@@ -162,8 +175,144 @@ func (s *service) Update(ctx context.Context, id uuid.UUID, req UpdateProductReq
 
 }
 
-func (s *service) FindAll(ctx context.Context) ([]models.Product, error) {
+// FindAll list produk untuk admin: semua produk (aktif & non-aktif),
+// dengan filter opsional dan pagination. Lewat cache supaya admin selalu
+// melihat data terkini.
+func (s *service) FindAll(ctx context.Context, filter ProductFilter) (ProductListResult, error) {
+	filter = filter.Normalize()
 
+	products, err := s.repo.FindAll(ctx)
+	if err != nil {
+		return ProductListResult{}, err
+	}
+
+	return paginateProducts(products, filter), nil
+}
+
+// FindPublicList list produk untuk publik: hanya produk aktif, dengan
+// pencarian, filter kategori, sorting, dan pagination.
+func (s *service) FindPublicList(ctx context.Context, filter ProductFilter) (ProductListResult, error) {
+	filter = filter.Normalize()
+
+	active := true
+	filter.IsActive = &active
+
+	products, err := s.findProducts(ctx)
+	if err != nil {
+		return ProductListResult{}, err
+	}
+
+	return paginateProducts(products, filter), nil
+}
+
+// paginateProducts menyaring, mengurutkan, dan memotong list produk.
+func paginateProducts(products []models.Product, filter ProductFilter) ProductListResult {
+	matched := make([]models.Product, 0, len(products))
+
+	for _, p := range products {
+		if filter.IsActive != nil && p.IsActive != *filter.IsActive {
+			continue
+		}
+
+		if filter.CategoryID != nil && p.CategoryID != *filter.CategoryID {
+			continue
+		}
+
+		if filter.Q != "" && !productMatches(p, filter.Q) {
+			continue
+		}
+
+		matched = append(matched, p)
+	}
+
+	sortProducts(matched, filter.Sort)
+
+	total := int64(len(matched))
+
+	start := (filter.Page - 1) * filter.PageSize
+	if start > len(matched) {
+		start = len(matched)
+	}
+
+	end := start + filter.PageSize
+	if end > len(matched) {
+		end = len(matched)
+	}
+
+	return ProductListResult{
+		Products: matched[start:end],
+		Total:    total,
+		Page:     filter.Page,
+		PageSize: filter.PageSize,
+	}
+}
+
+// productMatches mencocokkan keyword ke nama/deskripsi produk.
+func productMatches(p models.Product, q string) bool {
+	needle := strings.ToLower(q)
+
+	if strings.Contains(strings.ToLower(p.Name), needle) {
+		return true
+	}
+
+	if p.Description != nil && strings.Contains(strings.ToLower(*p.Description), needle) {
+		return true
+	}
+
+	return false
+}
+
+// sortProducts mengurutkan list produk sesuai parameter sort.
+func sortProducts(products []models.Product, sortBy string) {
+	switch sortBy {
+	case "oldest":
+		sort.SliceStable(products, func(i, j int) bool {
+			return products[i].CreatedAt.Before(products[j].CreatedAt)
+		})
+	case "name":
+		sort.SliceStable(products, func(i, j int) bool {
+			return strings.ToLower(products[i].Name) < strings.ToLower(products[j].Name)
+		})
+	case "name_desc":
+		sort.SliceStable(products, func(i, j int) bool {
+			return strings.ToLower(products[i].Name) > strings.ToLower(products[j].Name)
+		})
+	case "price_asc":
+		sort.SliceStable(products, func(i, j int) bool {
+			return minVariantPrice(products[i]).Cmp(minVariantPrice(products[j])) < 0
+		})
+	case "price_desc":
+		sort.SliceStable(products, func(i, j int) bool {
+			return minVariantPrice(products[i]).Cmp(minVariantPrice(products[j])) > 0
+		})
+	default:
+		sort.SliceStable(products, func(i, j int) bool {
+			return products[i].CreatedAt.After(products[j].CreatedAt)
+		})
+	}
+}
+
+// minVariantPrice harga terendah di antara varian aktif produk.
+func minVariantPrice(p models.Product) decimal.Decimal {
+	lowest := decimal.Zero
+	found := false
+
+	for _, v := range p.Variants {
+		if !v.IsActive {
+			continue
+		}
+
+		if !found || v.Price.LessThan(lowest) {
+			lowest = v.Price
+			found = true
+		}
+	}
+
+	return lowest
+}
+
+// findProducts mengambil seluruh produk, memakai cache Redis bila tersedia.
+func (s *service) findProducts(ctx context.Context) ([]models.Product, error) {
 	// Redis bermasalah bukan berarti list produk harus gagal.
 	cached, err := s.cache.Get(ctx, productListCacheKey)
 
@@ -223,6 +372,11 @@ func (s *service) FindByID(ctx context.Context, ID uuid.UUID) (models.Product, e
 		return models.Product{}, err
 	}
 
+	// Produk non-aktif tidak boleh bocor lewat endpoint publik.
+	if !product.IsActive {
+		return models.Product{}, ErrorProductNotFound
+	}
+
 	return product, nil
 }
 
@@ -231,6 +385,10 @@ func (s *service) FindBySlug(ctx context.Context, slug string) (models.Product, 
 
 	if err != nil {
 		return models.Product{}, err
+	}
+
+	if !product.IsActive {
+		return models.Product{}, ErrorProductNotFound
 	}
 
 	return product, nil

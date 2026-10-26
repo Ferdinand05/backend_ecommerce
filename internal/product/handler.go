@@ -7,6 +7,7 @@ import (
 	"ferdinand/ecommerce/internal/models"
 	"ferdinand/ecommerce/internal/storage"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -103,8 +104,10 @@ func toProductVariantDetailResponse(variant models.ProductVariant, provider stor
 }
 
 func toProductDetailResponse(product models.Product, provider storage.Provider) ProductDetailResponse {
-	variants := make([]ProductVariantDetailResponse, len(product.Variants))
-	for i, v := range product.Variants {
+	activeVariants := filterActiveVariants(product.Variants)
+
+	variants := make([]ProductVariantDetailResponse, len(activeVariants))
+	for i, v := range activeVariants {
 		variants[i] = toProductVariantDetailResponse(v, provider)
 	}
 
@@ -124,11 +127,31 @@ func toProductDetailResponse(product models.Product, provider storage.Provider) 
 	}
 }
 
+// filterActiveVariants membuang varian non-aktif dari daftar varian produk.
+func filterActiveVariants(variants []models.ProductVariant) []models.ProductVariant {
+	active := make([]models.ProductVariant, 0, len(variants))
+
+	for _, v := range variants {
+		if v.IsActive {
+			active = append(active, v)
+		}
+	}
+
+	return active
+}
+
+// FindAll handler list produk untuk publik: hanya produk aktif, dengan
+// pencarian, filter kategori, sorting, dan pagination.
 func (h *Handler) FindAll(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	products, err := h.service.FindAll(ctx)
+	filter, ok := parseProductFilter(c)
+	if !ok {
+		return
+	}
+
+	result, err := h.service.FindPublicList(ctx, filter)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "internal server error",
@@ -136,14 +159,105 @@ func (h *Handler) FindAll(c *gin.Context) {
 		return
 	}
 
-	responses := make([]ProductResponse, len(products))
-	for i, p := range products {
+	responses := make([]ProductResponse, len(result.Products))
+	for i, p := range result.Products {
+		p.Variants = filterActiveVariants(p.Variants)
 		responses[i] = toProductResponse(p, h.storage)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"products": responses,
+		"meta": ProductListMeta{
+			Total:    result.Total,
+			Page:     result.Page,
+			PageSize: result.PageSize,
+		},
 	})
+}
+
+// FindAllAdmin handler list produk untuk admin: semua produk, filter
+// opsional is_active, dengan pagination.
+func (h *Handler) FindAllAdmin(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	filter, ok := parseProductFilter(c)
+	if !ok {
+		return
+	}
+
+	if raw := c.Query("is_active"); raw != "" {
+		value := raw == "true" || raw == "1"
+		filter.IsActive = &value
+	}
+
+	result, err := h.service.FindAll(ctx, filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "internal server error",
+		})
+		return
+	}
+
+	responses := make([]ProductResponse, len(result.Products))
+	for i, p := range result.Products {
+		responses[i] = toProductResponse(p, h.storage)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"products": responses,
+		"meta": ProductListMeta{
+			Total:    result.Total,
+			Page:     result.Page,
+			PageSize: result.PageSize,
+		},
+	})
+}
+
+// parseProductFilter membaca query parameter list produk.
+func parseProductFilter(c *gin.Context) (ProductFilter, bool) {
+	filter := ProductFilter{
+		Q:    c.Query("q"),
+		Sort: c.Query("sort"),
+	}
+
+	if raw := c.Query("category_id"); raw != "" {
+		categoryID, err := uuid.Parse(raw)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid category id",
+			})
+			return ProductFilter{}, false
+		}
+
+		filter.CategoryID = &categoryID
+	}
+
+	if raw := c.Query("page"); raw != "" {
+		page, err := strconv.Atoi(raw)
+		if err != nil || page < 1 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid page",
+			})
+			return ProductFilter{}, false
+		}
+
+		filter.Page = page
+	}
+
+	if raw := c.Query("page_size"); raw != "" {
+		pageSize, err := strconv.Atoi(raw)
+		if err != nil || pageSize < 1 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid page size",
+			})
+			return ProductFilter{}, false
+		}
+
+		filter.PageSize = pageSize
+	}
+
+	return filter.Normalize(), true
 }
 
 func (h *Handler) FindByID(c *gin.Context) {

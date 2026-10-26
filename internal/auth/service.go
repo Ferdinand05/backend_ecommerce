@@ -52,6 +52,17 @@ type Service interface {
 		rawToken string,
 		newPassword string,
 	) error
+
+	GetMe(
+		ctx context.Context,
+		userID uuid.UUID,
+	) (user.UserResponse, error)
+
+	UpdateMe(
+		ctx context.Context,
+		userID uuid.UUID,
+		req UpdateProfileRequest,
+	) (user.UserResponse, error)
 }
 
 type service struct {
@@ -563,4 +574,39 @@ func (s *service) ResetPassword(
 	}
 
 	return nil
+}
+
+func (s *service) GetMe(
+	ctx context.Context,
+	userID uuid.UUID,
+) (user.UserResponse, error) {
+	u, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return user.UserResponse{}, err
+	}
+
+	return user.ToUserResponse(u), nil
+}
+
+func (s *service) UpdateMe(
+	ctx context.Context,
+	userID uuid.UUID,
+	req UpdateProfileRequest,
+) (user.UserResponse, error) {
+	if err := s.userRepo.UpdateProfile(
+		ctx,
+		userID,
+		req.FirstName,
+		req.LastName,
+		req.Phone,
+	); err != nil {
+		return user.UserResponse{}, err
+	}
+
+	u, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return user.UserResponse{}, err
+	}
+
+	return user.ToUserResponse(u), nil
 }

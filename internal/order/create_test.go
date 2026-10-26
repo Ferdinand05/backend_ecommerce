@@ -53,11 +53,13 @@ func (s *stubCartService) RemoveItem(ctx context.Context, userID uuid.UUID, item
 type stubInventoryRepo struct {
 	locked     []uuid.UUID
 	reserved   map[uuid.UUID]int
+	released   map[uuid.UUID]int
 	reserveErr error
+	releaseErr error
 }
 
 func newStubInventoryRepo() *stubInventoryRepo {
-	return &stubInventoryRepo{reserved: make(map[uuid.UUID]int)}
+	return &stubInventoryRepo{reserved: make(map[uuid.UUID]int), released: make(map[uuid.UUID]int)}
 }
 
 func (s *stubInventoryRepo) Create(ctx context.Context, item models.InventoryItem) error {
@@ -98,7 +100,11 @@ func (s *stubInventoryRepo) FinalizeReservation(ctx context.Context, variantID u
 }
 
 func (s *stubInventoryRepo) ReleaseReservation(ctx context.Context, variantID uuid.UUID, qty int) error {
-	return errors.New("not implemented")
+	if s.releaseErr != nil {
+		return s.releaseErr
+	}
+	s.released[variantID] += qty
+	return nil
 }
 
 type stubVariantRepo struct {

@@ -203,7 +203,7 @@ func TestServiceFindAllByProductID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := NewService(tt.repo, &fakeProductRepo{}, nil, nil)
 
-			got, err := svc.FindAllByProductID(context.Background(), productID)
+			got, err := svc.FindAllByProductID(context.Background(), productID, false)
 			if tt.wantErr != nil {
 				if !errors.Is(err, tt.wantErr) {
 					t.Fatalf("FindAllByProductID() error = %v, want %v", err, tt.wantErr)

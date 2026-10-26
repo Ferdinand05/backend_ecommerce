@@ -57,6 +57,22 @@ func (f *fakeUserRepo) UpdatePassword(ctx context.Context, userID uuid.UUID, pas
 	return nil
 }
 
+func (f *fakeUserRepo) UpdateProfile(ctx context.Context, userID uuid.UUID, firstName string, lastName *string, phone *string) error {
+	return nil
+}
+
+func (f *fakeUserRepo) UpdateStatus(ctx context.Context, userID uuid.UUID, status string) error {
+	return nil
+}
+
+func (f *fakeUserRepo) UpdateRole(ctx context.Context, userID uuid.UUID, roleID uuid.UUID) error {
+	return nil
+}
+
+func (f *fakeUserRepo) RoleExists(ctx context.Context, roleID uuid.UUID) (bool, error) {
+	return true, nil
+}
+
 type fakeRoleRepo struct {
 	findByNameRes models.Role
 	findByNameErr error

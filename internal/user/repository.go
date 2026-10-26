@@ -28,6 +28,33 @@ type Repository interface {
 		userID uuid.UUID,
 		passwordHash string,
 	) error
+
+	UpdateProfile(
+		ctx context.Context,
+		userID uuid.UUID,
+		firstName string,
+		lastName *string,
+		phone *string,
+	) error
+
+	UpdateStatus(
+		ctx context.Context,
+		userID uuid.UUID,
+		status string,
+	) error
+
+	UpdateRole(
+		ctx context.Context,
+		userID uuid.UUID,
+		roleID uuid.UUID,
+	) error
+
+	// RoleExists dipakai untuk memvalidasi role_id sebelum diassign
+	// ke user. Mengembalikan false bila role tidak ada.
+	RoleExists(
+		ctx context.Context,
+		roleID uuid.UUID,
+	) (bool, error)
 }
 
 type repository struct {
@@ -147,4 +174,97 @@ func (r *repository) UpdatePassword(
 	}
 
 	return nil
+}
+
+func (r *repository) UpdateProfile(
+	ctx context.Context,
+	userID uuid.UUID,
+	firstName string,
+	lastName *string,
+	phone *string,
+) error {
+	db := database.GetDB(ctx, r.db).WithContext(ctx)
+
+	result := db.
+		Model(&models.User{}).
+		Where("id = ?", userID).
+		Updates(map[string]any{
+			"first_name": firstName,
+			"last_name":  lastName,
+			"phone":      phone,
+		})
+
+	if result.Error != nil {
+		return fmt.Errorf("updating user profile: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return ErrorUserNotFound
+	}
+
+	return nil
+}
+
+func (r *repository) UpdateStatus(
+	ctx context.Context,
+	userID uuid.UUID,
+	status string,
+) error {
+	db := database.GetDB(ctx, r.db).WithContext(ctx)
+
+	result := db.
+		Model(&models.User{}).
+		Where("id = ?", userID).
+		Update("status", status)
+
+	if result.Error != nil {
+		return fmt.Errorf("updating user status: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return ErrorUserNotFound
+	}
+
+	return nil
+}
+
+func (r *repository) UpdateRole(
+	ctx context.Context,
+	userID uuid.UUID,
+	roleID uuid.UUID,
+) error {
+	db := database.GetDB(ctx, r.db).WithContext(ctx)
+
+	result := db.
+		Model(&models.User{}).
+		Where("id = ?", userID).
+		Update("role_id", roleID)
+
+	if result.Error != nil {
+		return fmt.Errorf("updating user role: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return ErrorUserNotFound
+	}
+
+	return nil
+}
+
+func (r *repository) RoleExists(
+	ctx context.Context,
+	roleID uuid.UUID,
+) (bool, error) {
+	var count int64
+
+	err := r.db.WithContext(ctx).
+		Model(&models.Role{}).
+		Where("id = ?", roleID).
+		Count(&count).Error
+
+	if err != nil {
+		return false, fmt.Errorf("counting role: %w", err)
+	}
+
+	return count > 0, nil
 }

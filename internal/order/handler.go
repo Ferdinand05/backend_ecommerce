@@ -237,6 +237,41 @@ func (h *Handler) UpdateStatus(c *gin.Context) {
 	})
 }
 
+// POST /me/orders/:order_id/cancel
+func (h *Handler) CancelOrder(c *gin.Context) {
+
+	userID, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+
+	orderID, ok := parseOrderID(c)
+	if !ok {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	order, err := h.service.CancelOrder(ctx, userID, orderID)
+	if err != nil {
+
+		if errors.Is(err, ErrorOrderNotCancellable) {
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "order cannot be cancelled",
+			})
+			return
+		}
+
+		respondOrderError(c, "order.cancel", &userID, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"order": toOrderDetailResponse(order),
+	})
+}
+
 func respondOrderList(c *gin.Context, result OrderListResult) {
 
 	orders := make([]OrderResponse, len(result.Orders))

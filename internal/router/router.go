@@ -6,6 +6,7 @@ import (
 	"ferdinand/ecommerce/internal/category"
 	"ferdinand/ecommerce/internal/checkout"
 	"ferdinand/ecommerce/internal/inventory"
+	"ferdinand/ecommerce/internal/metrics"
 	"ferdinand/ecommerce/internal/middleware"
 	"ferdinand/ecommerce/internal/order"
 	"ferdinand/ecommerce/internal/payment"
@@ -38,6 +39,7 @@ type RouteHandlers struct {
 	CheckoutHandler       *checkout.Handler
 	PaymentHandler        *payment.Handler
 	ShipmentHandler       *shipment.Handler
+	MetricsHandler       *metrics.Handler
 }
 
 func New(handlers RouteHandlers, jwtService *userJWT.JWTService) *gin.Engine {
@@ -62,6 +64,10 @@ func New(handlers RouteHandlers, jwtService *userJWT.JWTService) *gin.Engine {
 	// ============================================================
 	// Auth: login, register — accessible by anyone
 	auth.RegisterRoutes(v1, handlers.AuthHandler)
+
+	// Profile: /auth/me — read & update own account (auth required)
+	authProfileRG := v1.Group("/auth/me", middleware.AuthMiddleware(jwtService))
+	auth.RegisterProfileRoutes(authProfileRG, handlers.AuthHandler)
 
 	// Categories: read-only list/detail — product catalog browsing
 	category.RegisterPublicRoutes(v1, handlers.CategoryHandler)
@@ -128,6 +134,9 @@ func New(handlers RouteHandlers, jwtService *userJWT.JWTService) *gin.Engine {
 
 	// Inventory: manage stock movements — admin only
 	inventory.RegisterRoutes(admin, handlers.InventoryHandler)
+
+	// Metrics: dashboard summary — admin only
+	metrics.RegisterRoutes(admin, handlers.MetricsHandler)
 
 	// Order management: list/update all orders, view histories
 	// Already registered above via order.RegisterRoutes(me, admin, ...)

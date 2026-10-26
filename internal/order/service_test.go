@@ -34,6 +34,9 @@ type fakeRepo struct {
 	updateStatusErr    error
 
 	historiesCreated []models.OrderStatusHistory
+
+	findItemsRes []models.OrderItem
+	findItemsErr error
 }
 
 func (f *fakeRepo) FindByID(ctx context.Context, orderID uuid.UUID) (models.Order, error) {
@@ -85,6 +88,13 @@ func (f *fakeRepo) UpdateStatus(ctx context.Context, orderID uuid.UUID, status s
 	f.updateStatusID = orderID
 	f.updateStatusStatus = status
 	return f.updateStatusErr
+}
+
+func (f *fakeRepo) FindItemsByOrderID(ctx context.Context, orderID uuid.UUID) ([]models.OrderItem, error) {
+	if f.findItemsErr != nil {
+		return nil, f.findItemsErr
+	}
+	return f.findItemsRes, nil
 }
 
 func TestFindMyOrdersPassesPagination(t *testing.T) {

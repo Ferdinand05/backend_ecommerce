@@ -19,6 +19,12 @@ type fakeRepo struct {
 	createResult   models.User
 	createErr      error
 	createCalled   bool
+
+	updateProfileErr  error
+	updateStatusErr   error
+	updateRoleErr     error
+	roleExists        bool
+	updatedUser       models.User
 }
 
 func (f *fakeRepo) FindAll(ctx context.Context) ([]models.User, error) {
@@ -47,6 +53,22 @@ func (f *fakeRepo) MarkEmailVerified(ctx context.Context, userID uuid.UUID) erro
 
 func (f *fakeRepo) UpdatePassword(ctx context.Context, userID uuid.UUID, passwordHash string) error {
 	return nil
+}
+
+func (f *fakeRepo) UpdateProfile(ctx context.Context, userID uuid.UUID, firstName string, lastName *string, phone *string) error {
+	return f.updateProfileErr
+}
+
+func (f *fakeRepo) UpdateStatus(ctx context.Context, userID uuid.UUID, status string) error {
+	return f.updateStatusErr
+}
+
+func (f *fakeRepo) UpdateRole(ctx context.Context, userID uuid.UUID, roleID uuid.UUID) error {
+	return f.updateRoleErr
+}
+
+func (f *fakeRepo) RoleExists(ctx context.Context, roleID uuid.UUID) (bool, error) {
+	return f.roleExists, nil
 }
 
 func TestServiceFindAll(t *testing.T) {
@@ -208,6 +230,114 @@ func TestServiceCreate(t *testing.T) {
 
 			if got.ID != u.ID {
 				t.Fatalf("Create() = %v, want %v", got, u)
+			}
+		})
+	}
+}
+
+func TestServiceUpdateProfile(t *testing.T) {
+	id := uuid.New()
+	repo := &fakeRepo{
+		findByIDResult: models.User{ID: id, FirstName: "Baru"},
+	}
+
+	svc := NewService(repo)
+
+	got, err := svc.UpdateProfile(context.Background(), id, UpdateProfileRequest{
+		FirstName: "Baru",
+	})
+	if err != nil {
+		t.Fatalf("UpdateProfile() error = %v", err)
+	}
+
+	if got.FirstName != "Baru" {
+		t.Fatalf("UpdateProfile() FirstName = %q, want %q", got.FirstName, "Baru")
+	}
+}
+
+func TestServiceUpdateStatus(t *testing.T) {
+	id := uuid.New()
+
+	tests := []struct {
+		name    string
+		repo    *fakeRepo
+		status  string
+		wantErr error
+	}{
+		{
+			name:   "active",
+			repo:   &fakeRepo{findByIDResult: models.User{ID: id, Status: "active"}},
+			status: "active",
+		},
+		{
+			name:   "blocked",
+			repo:   &fakeRepo{findByIDResult: models.User{ID: id, Status: "blocked"}},
+			status: "blocked",
+		},
+		{
+			name:    "invalid status",
+			repo:    &fakeRepo{},
+			status:  "inactive",
+			wantErr: ErrorInvalidUserStatus,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := NewService(tt.repo)
+
+			_, err := svc.UpdateStatus(context.Background(), id, tt.status)
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("UpdateStatus() error = %v, want %v", err, tt.wantErr)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("UpdateStatus() error = %v", err)
+			}
+		})
+	}
+}
+
+func TestServiceUpdateRole(t *testing.T) {
+	id := uuid.New()
+	roleID := uuid.New()
+
+	tests := []struct {
+		name    string
+		repo    *fakeRepo
+		wantErr error
+	}{
+		{
+			name: "success",
+			repo: &fakeRepo{
+				roleExists:     true,
+				findByIDResult: models.User{ID: id},
+			},
+		},
+		{
+			name:    "role not found",
+			repo:    &fakeRepo{roleExists: false},
+			wantErr: ErrorRoleNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := NewService(tt.repo)
+
+			_, err := svc.UpdateRole(context.Background(), id, roleID)
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("UpdateRole() error = %v, want %v", err, tt.wantErr)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("UpdateRole() error = %v", err)
 			}
 		})
 	}

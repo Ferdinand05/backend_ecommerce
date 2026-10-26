@@ -16,6 +16,7 @@ func RegisterPublicRoutes(rg *gin.RouterGroup, handler *Handler) {
 func RegisterAdminRoutes(admin *gin.RouterGroup, handler *Handler) {
 	product := admin.Group("/products")
 	{
+		product.GET("", handler.FindAllAdmin)
 		product.POST("", handler.Create)
 		product.PUT("/:product_id", handler.Update)
 		product.DELETE("/:product_id", handler.Delete)

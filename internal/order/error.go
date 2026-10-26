@@ -10,4 +10,5 @@ var (
 	ErrorVariantUnavailable      = errors.New("product variant is unavailable")
 	ErrorInvalidOrderInput       = errors.New("invalid order input")
 	ErrorShippingRateNotFound    = errors.New("selected shipping service is unavailable")
+	ErrorOrderNotCancellable     = errors.New("order cannot be cancelled")
 )
